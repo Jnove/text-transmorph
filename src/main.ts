@@ -3,6 +3,7 @@ import { STAGE_WIDTH, STAGE_HEIGHT, defaultConfig } from './config/types'
 import { createStore } from './config/store'
 import { Engine } from './core/engine'
 import { blitFit } from './render/renderer'
+import { mountControls } from './ui/controls'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
@@ -35,6 +36,12 @@ requestAnimationFrame(frame)
 
 // Re-sample when structural params change.
 store.subscribe(() => engine.rebuild())
+
+mountControls(
+  document.querySelector<HTMLElement>('#controls')!,
+  store,
+  () => engine.rebuild(),
+)
 
 // Expose for later tasks (UI + exporters wire into these).
 ;(window as any).__transmorph = { store, engine, stage }
