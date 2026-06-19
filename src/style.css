@@ -1,0 +1,14 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #1a1a1a; color: #eee; }
+#app { display: flex; min-height: 100vh; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+#display { width: 100%; max-width: 900px; aspect-ratio: 1280 / 520; background: #000; border-radius: 8px; }
+#panel { width: 320px; padding: 16px 20px; background: #232323; overflow-y: auto; max-height: 100vh; }
+#panel h1 { font-size: 16px; margin: 0 0 12px; }
+.row { margin: 10px 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.row label { color: #aaa; }
+.row input, .row select, .row textarea { width: 100%; padding: 6px; background: #333; color: #eee; border: 1px solid #444; border-radius: 4px; }
+.export-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.export-btns button { flex: 1; padding: 8px; cursor: pointer; background: #3b6; color: #fff; border: none; border-radius: 4px; }
+.export-btns button:disabled { background: #555; cursor: not-allowed; }
+#status { font-size: 12px; color: #9c9; margin-top: 8px; min-height: 16px; }
