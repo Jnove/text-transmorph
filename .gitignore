@@ -1,0 +1,4 @@
+node_modules/
+dist/
+effect/frames_tmp/
+.DS_Store
