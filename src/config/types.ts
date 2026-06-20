@@ -20,7 +20,7 @@ export interface Config {
   transitionMs: number
   holdMs: number
   easing: EasingName
-  scatterAmount: number  // stage px
+  scatterAmount: number  // stage px — dispersal distance to the waypoint
   randomness: number     // 0-1
   movement: MovementMode
   seed: number
@@ -42,7 +42,7 @@ export const defaultConfig: Config = {
   transitionMs: 1400,
   holdMs: 1200,
   easing: 'easeInOutCubic',
-  scatterAmount: 120,
+  scatterAmount: 280,
   randomness: 0.6,
   movement: 'random',
   seed: 1,

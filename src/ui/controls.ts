@@ -11,13 +11,11 @@ const STRUCTURAL = new Set<keyof Config>([
 const MOVEMENT_LABELS: Record<MovementMode, string> = {
   random: '随机散开',
   explode: '径向爆炸',
-  implode: '径向内敛',
-  sweepLeft: '扫动·左',
-  sweepRight: '扫动·右',
-  sweepUp: '扫动·上',
-  sweepDown: '扫动·下',
-  swirl: '旋转·漩涡',
+  implode: '径向收敛',
   gravity: '重力下落',
+  verticalCross: '垂直交叉',
+  horizontalCross: '水平交叉',
+  swirl: '旋转漩涡',
   morph: '直接变形',
 }
 
@@ -58,7 +56,7 @@ export function mountControls(
   bind('fillRatio', `字号占比 (${c.fillRatio})`, `<input id="f-fill" type="range" min="0.3" max="0.9" step="0.02" value="${c.fillRatio}">`)
   bind('transitionMs', `过渡时长 (${c.transitionMs}ms)`, `<input id="f-trans" type="range" min="300" max="3000" step="50" value="${c.transitionMs}">`)
   bind('holdMs', `停留时长 (${c.holdMs}ms)`, `<input id="f-hold" type="range" min="200" max="4000" step="50" value="${c.holdMs}">`)
-  bind('scatterAmount', `散开强度 (${c.scatterAmount})`, `<input id="f-scatter" type="range" min="0" max="400" value="${c.scatterAmount}">`)
+  bind('scatterAmount', `散开强度 (${c.scatterAmount})`, `<input id="f-scatter" type="range" min="0" max="800" value="${c.scatterAmount}">`)
   bind('randomness', `随机度 (${c.randomness})`, `<input id="f-rand" type="range" min="0" max="1" step="0.05" value="${c.randomness}">`)
   bind('movement', '点的移动方式',
     `<select id="f-move">${(Object.keys(MOVEMENT_LABELS) as MovementMode[])
