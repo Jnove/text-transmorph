@@ -31,9 +31,12 @@ display.height = STAGE_HEIGHT
 const dctx = display.getContext('2d')!
 
 let start = performance.now()
+let exporting = false
 function frame(now: number) {
-  engine.renderAt(now - start)
-  blitFit(dctx, stage, display.width, display.height, store.get().backgroundColor)
+  if (!exporting) {
+    engine.renderAt(now - start)
+    blitFit(dctx, stage, display.width, display.height, store.get().backgroundColor)
+  }
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
@@ -54,8 +57,9 @@ const setBusy = (busy: boolean, msg = '') => {
   status.textContent = msg
 }
 
-document.querySelector('#exp-gif')!.addEventListener('click', () => {
+document.querySelector('#exp-gif')!.addEventListener('click', async () => {
   setBusy(true, '正在生成 GIF…')
+  await new Promise((r) => requestAnimationFrame(() => r(null)))
   try {
     const blob = exportGif(engine, stage, 25, engine.durationMs())
     downloadBlob(blob, 'transmorph.gif')
@@ -72,12 +76,15 @@ if (!webmSupported()) {
 }
 webmBtn.addEventListener('click', async () => {
   setBusy(true, '正在录制 WebM…')
+  exporting = true
   try {
     const blob = await exportWebm(engine, stage, 30, engine.durationMs())
     downloadBlob(blob, 'transmorph.webm')
     setBusy(false, 'WebM 已下载')
   } catch (e) {
     setBusy(false, 'WebM 失败：' + (e as Error).message)
+  } finally {
+    exporting = false
   }
 })
 
@@ -88,11 +95,14 @@ if (!mp4Supported()) {
 }
 mp4Btn.addEventListener('click', async () => {
   setBusy(true, '正在录制 MP4…')
+  exporting = true
   try {
     const blob = await exportMp4(engine, stage, 30, engine.durationMs())
     downloadBlob(blob, 'transmorph.mp4')
     setBusy(false, 'MP4 已下载')
   } catch (e) {
     setBusy(false, 'MP4 失败：' + (e as Error).message)
+  } finally {
+    exporting = false
   }
 })

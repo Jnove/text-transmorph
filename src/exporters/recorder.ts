@@ -33,17 +33,22 @@ export function recordStream(
     const stream = stage.captureStream(fps)
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 })
     const chunks: Blob[] = []
+    let rafId = 0
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
     rec.onstop = () => {
+      cancelAnimationFrame(rafId)
       stream.getTracks().forEach((t) => t.stop())
       resolve(new Blob(chunks, { type: blobType }))
     }
-    rec.onerror = (e) =>
-      reject((e as unknown as { error?: Error }).error ?? new Error('录制失败'))
+    rec.onerror = (e) => {
+      cancelAnimationFrame(rafId)
+      reject((e as Event & { readonly error: DOMException }).error ?? new Error('录制失败'))
+    }
 
     const start = performance.now()
     rec.start()
     const tick = (now: number) => {
+      if (rec.state !== 'recording') return
       const t = now - start
       if (t >= durationMs) {
         engine.renderAt(durationMs - 1)
@@ -51,8 +56,8 @@ export function recordStream(
         return
       }
       engine.renderAt(t)
-      requestAnimationFrame(tick)
+      rafId = requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
+    rafId = requestAnimationFrame(tick)
   })
 }
