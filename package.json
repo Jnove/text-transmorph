@@ -16,8 +16,6 @@
     "vitest": "^2.0.5"
   },
   "dependencies": {
-    "gifenc": "^1.0.3",
-    "@ffmpeg/ffmpeg": "0.12.15",
-    "@ffmpeg/util": "^0.12.1"
+    "gifenc": "^1.0.3"
   }
 }
