@@ -1,4 +1,8 @@
 node_modules/
 dist/
-effect/frames_tmp/
+effect/
 .DS_Store
+docs/
+.vite/
+movement-preview*.png
+.superpowers/

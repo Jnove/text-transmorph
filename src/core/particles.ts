@@ -22,6 +22,19 @@ export type ParticleSystemOptions = {
   floorY?: number
 }
 
+/** Two-phase modes disperse to a waypoint at progress=0.5, then form the
+ *  target. Single-phase modes (cross/morph) travel straight src→dst so the
+ *  motion stays purely on its axis with no parasitic detour. */
+function isTwoPhase(mode: MovementMode): boolean {
+  return (
+    mode === 'random' ||
+    mode === 'explode' ||
+    mode === 'implode' ||
+    mode === 'gravity' ||
+    mode === 'swirl'
+  )
+}
+
 function sortedByX(pts: Vec2[]): Vec2[] {
   return [...pts].sort((a, b) => a.x - b.x || a.y - b.y)
 }
@@ -29,15 +42,25 @@ function sortedByY(pts: Vec2[]): Vec2[] {
   return [...pts].sort((a, b) => a.y - b.y || a.x - b.x)
 }
 
-/** Pair text-A points to text-B points by a mode-dependent rank so motion
- *  stays on the mode's axis. Shorter set is index-wrapped to max length. */
-export function pairPoints(
-  from: Vec2[],
-  to: Vec2[],
-  mode: MovementMode,
-): { src: Vec2[]; dst: Vec2[] } {
-  const a = mode === 'horizontalCross' ? sortedByY(from) : sortedByX(from)
-  const b = mode === 'horizontalCross' ? sortedByY(to) : sortedByX(to)
+/** Nearest point in `sorted` (already ordered by `axis`) to the given coord,
+ *  via binary search. Used to relocate a leftover particle the *shortest*
+ *  distance to an occupied line. `sorted` must be non-empty. */
+function nearestByAxis(sorted: Vec2[], coord: number, axis: 'x' | 'y'): Vec2 {
+  const val = axis === 'x' ? (p: Vec2) => p.x : (p: Vec2) => p.y
+  let lo = 0
+  let hi = sorted.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (val(sorted[mid]) < coord) lo = mid + 1
+    else hi = mid
+  }
+  const a = sorted[lo]
+  const b = sorted[lo > 0 ? lo - 1 : lo]
+  return Math.abs(val(a) - coord) <= Math.abs(val(b) - coord) ? a : b
+}
+
+/** Rank-pair two point sets, wrapping the shorter one to the max length. */
+function rankPair(a: Vec2[], b: Vec2[]): { src: Vec2[]; dst: Vec2[] } {
   const n = Math.max(a.length, b.length)
   const src: Vec2[] = []
   const dst: Vec2[] = []
@@ -49,13 +72,94 @@ export function pairPoints(
   return { src, dst }
 }
 
+/** Bucket points by the rounded value of one axis (the sampler lays points on
+ *  a shared grid, so both texts land on the same column/row keys). */
+function bucketByAxis(pts: Vec2[], axis: 'x' | 'y'): Map<number, Vec2[]> {
+  const m = new Map<number, Vec2[]>()
+  for (const p of pts) {
+    const k = Math.round(axis === 'x' ? p.x : p.y)
+    const arr = m.get(k)
+    if (arr) arr.push(p)
+    else m.set(k, [p])
+  }
+  return m
+}
+
+/** Swap pairing for cross modes, done *within each shared grid line* so the
+ *  swap is local to a glyph's column/row and horizontal (resp. vertical)
+ *  drift stays near zero — matching the user's "单个字的上方点向下" intent.
+ *  verticalCross (axis 'y'): per x-column, top point ↔ bottom point.
+ *  horizontalCross (axis 'x'): per y-row, left point ↔ right point.
+ *  Points whose grid line has no counterpart fall back to nearest-rank
+ *  pairing so every particle is still placed. */
+function crossPair(from: Vec2[], to: Vec2[], axis: 'x' | 'y'): { src: Vec2[]; dst: Vec2[] } {
+  // axis 'y' swaps along y within x-columns; axis 'x' swaps along x within y-rows.
+  const lineAxis: 'x' | 'y' = axis === 'y' ? 'x' : 'y'
+  const swapVal = axis === 'y' ? (p: Vec2) => p.y : (p: Vec2) => p.x
+  const A = bucketByAxis(from, lineAxis)
+  const B = bucketByAxis(to, lineAxis)
+  const src: Vec2[] = []
+  const dst: Vec2[] = []
+  const aOnly: Vec2[] = []
+  const bOnly: Vec2[] = []
+  const keys = new Set<number>([...A.keys(), ...B.keys()])
+  for (const k of keys) {
+    const ac = A.get(k)
+    const bc = B.get(k)
+    if (ac && bc) {
+      const as = [...ac].sort((p, q) => swapVal(p) - swapVal(q)) // ascending
+      const bs = [...bc].sort((p, q) => swapVal(q) - swapVal(p)) // descending → swap
+      const n = Math.max(as.length, bs.length)
+      for (let i = 0; i < n; i++) {
+        src.push(as[i % as.length])
+        dst.push(bs[i % bs.length])
+      }
+    } else if (ac) {
+      for (const p of ac) aOnly.push(p)
+    } else if (bc) {
+      for (const p of bc) bOnly.push(p)
+    }
+  }
+  // Leftover grid lines present on only one side: send each particle the
+  // *shortest* distance to the nearest occupied line on the other side
+  // (relocating, not swapping) so no particle streaks across the stage.
+  if (aOnly.length || bOnly.length) {
+    const toSorted = lineAxis === 'x' ? sortedByX(to) : sortedByY(to)
+    const fromSorted = lineAxis === 'x' ? sortedByX(from) : sortedByY(from)
+    const lineCoord = lineAxis === 'x' ? (p: Vec2) => p.x : (p: Vec2) => p.y
+    for (const p of aOnly) {
+      src.push(p)
+      dst.push(nearestByAxis(toSorted, lineCoord(p), lineAxis))
+    }
+    for (const p of bOnly) {
+      src.push(nearestByAxis(fromSorted, lineCoord(p), lineAxis))
+      dst.push(p)
+    }
+  }
+  return { src, dst }
+}
+
+/** Pair text-A points to text-B points. Cross modes use swap pairing (top↔
+ *  bottom / left↔right); all other modes rank-pair by (x,y). Shorter set is
+ *  index-wrapped to the max length. */
+export function pairPoints(
+  from: Vec2[],
+  to: Vec2[],
+  mode: MovementMode,
+): { src: Vec2[]; dst: Vec2[] } {
+  if (mode === 'verticalCross') return crossPair(from, to, 'y')
+  if (mode === 'horizontalCross') return crossPair(from, to, 'x')
+  return rankPair(sortedByX(from), sortedByX(to))
+}
+
 function normalize(v: Vec2): Vec2 {
   const l = Math.hypot(v.x, v.y)
   return l > 1e-6 ? { x: v.x / l, y: v.y / l } : { x: 0, y: 0 }
 }
 
-/** The single waypoint a particle passes through at progress=0.5. Each mode
- *  shapes the fully-dispersed midpoint; `amount` is the dispersal distance. */
+/** The waypoint a two-phase particle passes through at progress=0.5. Each
+ *  mode shapes the fully-dispersed midpoint; `amount` is the dispersal
+ *  distance. Only called for two-phase modes. */
 export function waypointFor(
   mode: MovementMode,
   src: Vec2,
@@ -86,24 +190,18 @@ export function waypointFor(
       return { x: mid.x + d.x * amount, y: mid.y + d.y * amount }
     }
     case 'random':
+    default:
       return {
         x: mid.x + randomDir.x * amount * jitter,
         y: mid.y + randomDir.y * amount * jitter,
       }
-    case 'verticalCross':
-      return { x: mid.x, y: 2 * center.y - mid.y }
-    case 'horizontalCross':
-      return { x: 2 * center.x - mid.x, y: mid.y }
-    case 'morph':
-    default:
-      return mid
   }
 }
 
 export class ParticleSystem {
   private readonly src: Vec2[]
   private readonly dst: Vec2[]
-  private readonly way: Vec2[]
+  private readonly way: Vec2[] | null
   private readonly ease: (t: number) => number
 
   constructor(from: Vec2[], to: Vec2[], opts: ParticleSystemOptions) {
@@ -115,34 +213,53 @@ export class ParticleSystem {
     const paired = pairPoints(from, to, movement)
     this.src = paired.src
     this.dst = paired.dst
-    this.way = []
-    for (let i = 0; i < this.src.length; i++) {
-      const angle = rand() * Math.PI * 2
-      const randomDir: Vec2 = { x: Math.cos(angle), y: Math.sin(angle) }
-      const jitter = 1 - opts.randomness * rand()
-      this.way.push(
-        waypointFor(
-          movement, this.src[i], this.dst[i], center,
-          opts.scatterAmount, floorY, randomDir, jitter,
-        ),
-      )
+
+    if (isTwoPhase(movement)) {
+      const way: Vec2[] = []
+      for (let i = 0; i < this.src.length; i++) {
+        const angle = rand() * Math.PI * 2
+        const randomDir: Vec2 = { x: Math.cos(angle), y: Math.sin(angle) }
+        const jitter = 1 - opts.randomness * rand()
+        way.push(
+          waypointFor(
+            movement, this.src[i], this.dst[i], center,
+            opts.scatterAmount, floorY, randomDir, jitter,
+          ),
+        )
+      }
+      this.way = way
+    } else {
+      // Single-phase (cross / morph): straight src→dst, no waypoint.
+      this.way = null
     }
   }
 
   positionsAt(progress: number): Vec2[] {
     const out: Vec2[] = []
+    const way = this.way
+    if (way === null) {
+      // Single-phase: a straight, eased lerp from src to dst.
+      const e = this.ease(progress)
+      for (let i = 0; i < this.src.length; i++) {
+        out.push({
+          x: lerp(this.src[i].x, this.dst[i].x, e),
+          y: lerp(this.src[i].y, this.dst[i].y, e),
+        })
+      }
+      return out
+    }
     for (let i = 0; i < this.src.length; i++) {
       if (progress <= 0.5) {
         const e = this.ease(progress / 0.5)
         out.push({
-          x: lerp(this.src[i].x, this.way[i].x, e),
-          y: lerp(this.src[i].y, this.way[i].y, e),
+          x: lerp(this.src[i].x, way[i].x, e),
+          y: lerp(this.src[i].y, way[i].y, e),
         })
       } else {
         const e = this.ease((progress - 0.5) / 0.5)
         out.push({
-          x: lerp(this.way[i].x, this.dst[i].x, e),
-          y: lerp(this.way[i].y, this.dst[i].y, e),
+          x: lerp(way[i].x, this.dst[i].x, e),
+          y: lerp(way[i].y, this.dst[i].y, e),
         })
       }
     }
