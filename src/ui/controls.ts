@@ -21,6 +21,14 @@ const MOVEMENT_LABELS: Record<MovementMode, string> = {
   morph: '直接变形',
 }
 
+function escapeAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 export function mountControls(
   container: HTMLElement,
   store: Store,
@@ -59,7 +67,7 @@ export function mountControls(
     `<select id="f-ease">${(Object.keys(easings) as EasingName[])
        .map((e) => `<option value="${e}"${c.easing === e ? ' selected' : ''}>${e}</option>`).join('')}</select>`)
   bind('fileName', '文件名',
-    `<input id="f-name" type="text" value="${c.fileName}">`)
+    `<input id="f-name" type="text" value="${escapeAttr(c.fileName)}">`) // escape: fileName is free user text
 
   container.innerHTML = rows.join('')
 
