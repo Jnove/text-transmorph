@@ -88,6 +88,18 @@ describe('pairPoints', () => {
       expect(Math.abs(dst[i].x - src[i].x)).toBeLessThanOrEqual(50)
     }
   })
+  it('gravity uses nearest pairing so the spring-up has no sideways streak', () => {
+    // Same anti-streak guarantee as morph: the far target is fed from the near
+    // source, so no dot travels the full width horizontally on the rise.
+    const a: Vec2[] = [{ x: 0, y: 0 }, { x: 50, y: 0 }]
+    const b: Vec2[] = [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 0 }]
+    const { src, dst } = pairPoints(a, b, 'gravity')
+    const far = dst.findIndex((p) => p.x === 100)
+    expect(src[far].x).toBe(50)
+    for (let i = 0; i < src.length; i++) {
+      expect(Math.abs(dst[i].x - src[i].x)).toBeLessThanOrEqual(50)
+    }
+  })
   it('morph covers every source point so text A renders complete at rest', () => {
     // A point with no nearest-target claim must still get a path.
     const a: Vec2[] = [{ x: 0, y: 0 }, { x: 200, y: 0 }]

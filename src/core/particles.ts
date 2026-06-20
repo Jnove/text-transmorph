@@ -184,9 +184,11 @@ function crossPair(from: Vec2[], to: Vec2[], axis: 'x' | 'y'): { src: Vec2[]; ds
 }
 
 /** Pair text-A points to text-B points. Cross modes use swap pairing (top↔
- *  bottom / left↔right); morph uses nearest-neighbour pairing (minimal,
- *  in-place motion); dispersing modes rank-pair by x (pairing is hidden by the
- *  midpoint scatter). Shorter set is index-wrapped to the max length. */
+ *  bottom / left↔right); morph and gravity use nearest-neighbour pairing
+ *  (minimal horizontal travel — gravity keeps its column structure visible
+ *  through the fall/rise, so a wrap-streak pairing would show as a sideways
+ *  swap on the spring-up); the dispersing modes rank-pair by x (pairing is
+ *  hidden by the midpoint scatter). Shorter set is index-wrapped to max len. */
 export function pairPoints(
   from: Vec2[],
   to: Vec2[],
@@ -194,7 +196,7 @@ export function pairPoints(
 ): { src: Vec2[]; dst: Vec2[] } {
   if (mode === 'verticalCross') return crossPair(from, to, 'y')
   if (mode === 'horizontalCross') return crossPair(from, to, 'x')
-  if (mode === 'morph') return morphPair(from, to)
+  if (mode === 'morph' || mode === 'gravity') return morphPair(from, to)
   return rankPair(sortedByX(from), sortedByX(to))
 }
 
