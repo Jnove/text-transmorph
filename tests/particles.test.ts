@@ -75,6 +75,27 @@ describe('pairPoints', () => {
     expect(dst.length).toBe(2)
     expect(src[0]).toEqual(src[1])
   })
+  it('morph feeds each target from its nearest source (no wrap streaks)', () => {
+    // Unequal counts: rank-wrap would pair the far-left {0,0} with the far-right
+    // {100,0} (a full-width streak). Nearest pairing must feed {100,0} from the
+    // closer {50,0} instead, so no particle travels more than 50px.
+    const a: Vec2[] = [{ x: 0, y: 0 }, { x: 50, y: 0 }]
+    const b: Vec2[] = [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 0 }]
+    const { src, dst } = pairPoints(a, b, 'morph')
+    const far = dst.findIndex((p) => p.x === 100)
+    expect(src[far].x).toBe(50) // nearest source, not the far {0,0}
+    for (let i = 0; i < src.length; i++) {
+      expect(Math.abs(dst[i].x - src[i].x)).toBeLessThanOrEqual(50)
+    }
+  })
+  it('morph covers every source point so text A renders complete at rest', () => {
+    // A point with no nearest-target claim must still get a path.
+    const a: Vec2[] = [{ x: 0, y: 0 }, { x: 200, y: 0 }]
+    const b: Vec2[] = [{ x: 0, y: 0 }] // both A points are nearest to nothing on the right
+    const { src } = pairPoints(a, b, 'morph')
+    expect(src.some((p) => p.x === 0)).toBe(true)
+    expect(src.some((p) => p.x === 200)).toBe(true) // the unclaimed source is included
+  })
 })
 
 describe('waypointFor (two-phase modes only)', () => {
@@ -92,9 +113,9 @@ describe('waypointFor (two-phase modes only)', () => {
     const w = waypointFor('implode', { x: 6, y: 8 }, { x: 6, y: 8 }, center, 1000, 50, rd, 0)
     expect(Math.hypot(w.x, w.y)).toBeLessThan(1) // ~5% of original radius 10
   })
-  it('gravity waypoint keeps mid.x and drops to floorY (jitterFrac 0)', () => {
+  it('gravity falls straight down (keeps src.x) to the floor (jitterFrac 0)', () => {
     const w = waypointFor('gravity', { x: 4, y: 0 }, { x: 6, y: 0 }, center, 100, 478, rd, 0)
-    expect(w.x).toBeCloseTo(5, 6)
+    expect(w.x).toBeCloseTo(4, 6) // src.x, not mid.x — no sideways drift on the fall
     expect(w.y).toBeCloseTo(478, 6)
   })
   it('swirl waypoint is tangential to the radius (jitterFrac 0)', () => {
@@ -136,6 +157,31 @@ describe('ParticleSystem two-phase (explode)', () => {
     const before = ps.positionsAt(0.4999)[0]
     const after = ps.positionsAt(0.5001)[0]
     expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(0.5)
+  })
+})
+
+describe('ParticleSystem gravity (collapse then spring)', () => {
+  const o = {
+    seed: 1, scatterAmount: 100, randomness: 0, ease: (t: number) => t,
+    movement: 'gravity' as MovementMode, center: { x: 0, y: 0 }, floorY: 480,
+  }
+  const s: Vec2[] = [{ x: 0, y: 0 }]
+  const d: Vec2[] = [{ x: 100, y: 10 }]
+  it('falls straight down — no horizontal drift during the collapse half', () => {
+    const ps = new ParticleSystem(s, d, o)
+    for (const t of [0, 0.1, 0.25, 0.4, 0.5]) {
+      expect(ps.positionsAt(t)[0].x).toBeCloseTo(0, 6)
+    }
+  })
+  it('reaches the floor at the midpoint and lands exactly on dst at t=1', () => {
+    const ps = new ParticleSystem(s, d, o)
+    expect(ps.positionsAt(0.5)[0].y).toBeCloseTo(480, 6)
+    expect(ps.positionsAt(1)[0]).toEqual({ x: 100, y: 10 })
+  })
+  it('springs past the target on the reform half (easeOutBack overshoot)', () => {
+    const ps = new ParticleSystem(s, d, o)
+    const ys = [0.6, 0.7, 0.8, 0.9].map((t) => ps.positionsAt(t)[0].y)
+    expect(Math.min(...ys)).toBeLessThan(10) // rises above its final y, then settles
   })
 })
 

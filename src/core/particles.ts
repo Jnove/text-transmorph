@@ -72,6 +72,50 @@ function rankPair(a: Vec2[], b: Vec2[]): { src: Vec2[]; dst: Vec2[] } {
   return { src, dst }
 }
 
+/** Index of the point in `pts` nearest to `t` (squared distance). */
+function nearest2D(pts: Vec2[], t: Vec2): number {
+  let best = 0
+  let bestD = Infinity
+  for (let i = 0; i < pts.length; i++) {
+    const dx = pts[i].x - t.x
+    const dy = pts[i].y - t.y
+    const d = dx * dx + dy * dy
+    if (d < bestD) {
+      bestD = d
+      best = i
+    }
+  }
+  return best
+}
+
+/** Nearest-neighbour pairing for `morph`: every target B point is fed by its
+ *  closest source A point, and every A point not yet consumed is sent to its
+ *  closest B point. This makes the morph land each dot on the spatially nearest
+ *  position — short, in-place moves — instead of the rank-wrap pairing, whose
+ *  modulo step streaks left-side sources across to right-side targets when the
+ *  two texts differ in point count (the "looks like a swap" artifact). */
+function morphPair(from: Vec2[], to: Vec2[]): { src: Vec2[]; dst: Vec2[] } {
+  if (!from.length || !to.length) return rankPair(from, to)
+  const src: Vec2[] = []
+  const dst: Vec2[] = []
+  const usedA = new Set<number>()
+  // Cover every target: each B point pulls from its nearest A point.
+  for (const bp of to) {
+    const ai = nearest2D(from, bp)
+    usedA.add(ai)
+    src.push(from[ai])
+    dst.push(bp)
+  }
+  // Cover every source: A points no target claimed still need a path so text A
+  // renders complete at rest — send each to its nearest B point.
+  for (let i = 0; i < from.length; i++) {
+    if (usedA.has(i)) continue
+    src.push(from[i])
+    dst.push(to[nearest2D(to, from[i])])
+  }
+  return { src, dst }
+}
+
 /** Bucket points by the rounded value of one axis (the sampler lays points on
  *  a shared grid, so both texts land on the same column/row keys). */
 function bucketByAxis(pts: Vec2[], axis: 'x' | 'y'): Map<number, Vec2[]> {
@@ -140,8 +184,9 @@ function crossPair(from: Vec2[], to: Vec2[], axis: 'x' | 'y'): { src: Vec2[]; ds
 }
 
 /** Pair text-A points to text-B points. Cross modes use swap pairing (top↔
- *  bottom / left↔right); all other modes rank-pair by (x,y). Shorter set is
- *  index-wrapped to the max length. */
+ *  bottom / left↔right); morph uses nearest-neighbour pairing (minimal,
+ *  in-place motion); dispersing modes rank-pair by x (pairing is hidden by the
+ *  midpoint scatter). Shorter set is index-wrapped to the max length. */
 export function pairPoints(
   from: Vec2[],
   to: Vec2[],
@@ -149,6 +194,7 @@ export function pairPoints(
 ): { src: Vec2[]; dst: Vec2[] } {
   if (mode === 'verticalCross') return crossPair(from, to, 'y')
   if (mode === 'horizontalCross') return crossPair(from, to, 'x')
+  if (mode === 'morph') return morphPair(from, to)
   return rankPair(sortedByX(from), sortedByX(to))
 }
 
@@ -195,8 +241,11 @@ export function waypointFor(
       return { x: center.x + toMid.x * f + jx, y: center.y + toMid.y * f + jy }
     }
     case 'gravity':
-      // Pile on the floor with a touch of horizontal scatter.
-      return { x: mid.x + jx * 0.5, y: floorY }
+      // Building collapse: fall straight down (keep the source column, no
+      // sideways drift — that was the parasitic "swap shadow"), piling into a
+      // shallow rubble band just above the floor. Horizontal travel to the new
+      // layout happens only on the bounce-up phase.
+      return { x: src.x, y: floorY - Math.abs(jy) * 0.15 }
     case 'swirl': {
       const d = dist > 1e-6 ? normalize({ x: -toMid.y, y: toMid.x }) : randomDir
       return { x: mid.x + d.x * amount + jx, y: mid.y + d.y * amount + jy }
@@ -215,6 +264,18 @@ export function waypointFor(
  *  on the single-phase cross modes. */
 const CROSS_WOBBLE = 0.5
 
+/** Accelerating fall — heavy, gravity-like (slow start, fast finish). */
+function easeInQuad(t: number): number {
+  return t * t
+}
+/** Spring-up with overshoot — the dots shoot past the new layout, then settle
+ *  ("弹起" / bounce into the next text). */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158
+  const c3 = c1 + 1
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
+}
+
 export class ParticleSystem {
   private readonly src: Vec2[]
   private readonly dst: Vec2[]
@@ -222,6 +283,10 @@ export class ParticleSystem {
   /** Per-particle perpendicular wobble vector for cross modes (else null). */
   private readonly perp: Vec2[] | null
   private readonly ease: (t: number) => number
+  /** Easing for the two-phase disperse/reform halves. Defaults to `ease`;
+   *  gravity overrides them so the fall accelerates and the reform springs. */
+  private readonly phaseIn: (t: number) => number
+  private readonly phaseOut: (t: number) => number
 
   constructor(from: Vec2[], to: Vec2[], opts: ParticleSystemOptions) {
     const movement = opts.movement ?? 'random'
@@ -229,6 +294,10 @@ export class ParticleSystem {
     const floorY = opts.floorY ?? center.y * 2 * 0.92
     const rand = mulberry32(opts.seed)
     this.ease = opts.ease
+    // Gravity gets a heavy accelerating fall and a springy reform; every other
+    // two-phase mode keeps the configured easing on both halves.
+    this.phaseIn = movement === 'gravity' ? easeInQuad : opts.ease
+    this.phaseOut = movement === 'gravity' ? easeOutBack : opts.ease
     const paired = pairPoints(from, to, movement)
     this.src = paired.src
     this.dst = paired.dst
@@ -291,13 +360,13 @@ export class ParticleSystem {
     }
     for (let i = 0; i < this.src.length; i++) {
       if (progress <= 0.5) {
-        const e = this.ease(progress / 0.5)
+        const e = this.phaseIn(progress / 0.5)
         out.push({
           x: lerp(this.src[i].x, way[i].x, e),
           y: lerp(this.src[i].y, way[i].y, e),
         })
       } else {
-        const e = this.ease((progress - 0.5) / 0.5)
+        const e = this.phaseOut((progress - 0.5) / 0.5)
         out.push({
           x: lerp(way[i].x, this.dst[i].x, e),
           y: lerp(way[i].y, this.dst[i].y, e),
