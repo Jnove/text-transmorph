@@ -180,8 +180,23 @@ describe('ParticleSystem gravity (collapse then spring)', () => {
   })
   it('springs past the target on the reform half (easeOutBack overshoot)', () => {
     const ps = new ParticleSystem(s, d, o)
-    const ys = [0.6, 0.7, 0.8, 0.9].map((t) => ps.positionsAt(t)[0].y)
+    const ys = [0.7, 0.8, 0.9].map((t) => ps.positionsAt(t)[0].y)
     expect(Math.min(...ys)).toBeLessThan(10) // rises above its final y, then settles
+  })
+  it('pancakes: a dot near the floor lands before a dot high above it', () => {
+    // dot 0 starts just above the floor (short fall); dot 1 starts high (long fall).
+    const sp: Vec2[] = [{ x: 0, y: 470 }, { x: 10, y: 0 }]
+    const ps = new ParticleSystem(sp, sp, o)
+    const p = ps.positionsAt(0.2) // mid-collapse
+    expect(p[0].y).toBeGreaterThan(475) // near-floor dot has already piled up
+    expect(p[1].y).toBeLessThan(300) // high dot is still falling
+  })
+  it('settles on the floor and waits before the spring-up', () => {
+    const ps = new ParticleSystem(s, d, o)
+    const settle = ps.positionsAt(0.45)[0].y
+    const stillSettled = ps.positionsAt(0.64)[0].y
+    expect(settle).toBeCloseTo(480, 6)
+    expect(stillSettled).toBeCloseTo(480, 6) // unchanged through the rubble pause
   })
 })
 

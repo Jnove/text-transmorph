@@ -264,6 +264,13 @@ export function waypointFor(
  *  on the single-phase cross modes. */
 const CROSS_WOBBLE = 0.5
 
+/** Gravity timeline (fractions of the transition):
+ *  [0, GRAVITY_COLLAPSE_END]  collapse — dots fall and pancake onto the floor
+ *  [..., GRAVITY_RISE_START]  settle — rubble rests in place (the "wait")
+ *  [..., 1]                   reform — spring up into the next text */
+const GRAVITY_COLLAPSE_END = 0.42
+const GRAVITY_RISE_START = 0.65
+
 /** Accelerating fall — heavy, gravity-like (slow start, fast finish). */
 function easeInQuad(t: number): number {
   return t * t
@@ -283,10 +290,9 @@ export class ParticleSystem {
   /** Per-particle perpendicular wobble vector for cross modes (else null). */
   private readonly perp: Vec2[] | null
   private readonly ease: (t: number) => number
-  /** Easing for the two-phase disperse/reform halves. Defaults to `ease`;
-   *  gravity overrides them so the fall accelerates and the reform springs. */
-  private readonly phaseIn: (t: number) => number
-  private readonly phaseOut: (t: number) => number
+  /** Per-particle landing progress for gravity (else null): the progress at
+   *  which this dot reaches the floor. Tall dots land later → pancake pile-up. */
+  private readonly gLand: number[] | null
 
   constructor(from: Vec2[], to: Vec2[], opts: ParticleSystemOptions) {
     const movement = opts.movement ?? 'random'
@@ -294,10 +300,6 @@ export class ParticleSystem {
     const floorY = opts.floorY ?? center.y * 2 * 0.92
     const rand = mulberry32(opts.seed)
     this.ease = opts.ease
-    // Gravity gets a heavy accelerating fall and a springy reform; every other
-    // two-phase mode keeps the configured easing on both halves.
-    this.phaseIn = movement === 'gravity' ? easeInQuad : opts.ease
-    this.phaseOut = movement === 'gravity' ? easeOutBack : opts.ease
     const paired = pairPoints(from, to, movement)
     this.src = paired.src
     this.dst = paired.dst
@@ -317,6 +319,23 @@ export class ParticleSystem {
       }
       this.way = way
       this.perp = null
+      if (movement === 'gravity') {
+        // Pancake timing: a dot's fall time scales with √(fall distance) under
+        // constant gravity, so tall dots land later and the pile builds from the
+        // bottom up. Normalise so the tallest dot lands exactly at COLLAPSE_END.
+        let hMax = 1e-6
+        for (let i = 0; i < this.src.length; i++) {
+          hMax = Math.max(hMax, way[i].y - this.src[i].y)
+        }
+        const gLand: number[] = []
+        for (let i = 0; i < this.src.length; i++) {
+          const h = Math.max(0, way[i].y - this.src[i].y)
+          gLand.push(GRAVITY_COLLAPSE_END * Math.sqrt(h / hMax))
+        }
+        this.gLand = gLand
+      } else {
+        this.gLand = null
+      }
     } else if (movement === 'verticalCross' || movement === 'horizontalCross') {
       // Single-phase swap with a perpendicular wobble so the fold is not rigid:
       // verticalCross wobbles in x, horizontalCross in y. Signed per particle,
@@ -334,10 +353,12 @@ export class ParticleSystem {
       }
       this.way = null
       this.perp = perp
+      this.gLand = null
     } else {
       // morph: straight src→dst, no waypoint, no wobble.
       this.way = null
       this.perp = null
+      this.gLand = null
     }
   }
 
@@ -358,15 +379,40 @@ export class ParticleSystem {
       }
       return out
     }
+    const gLand = this.gLand
+    if (gLand !== null) {
+      // Gravity: per-dot pancake collapse → settle → spring-up reform.
+      for (let i = 0; i < this.src.length; i++) {
+        const rest = way[i]
+        if (progress < GRAVITY_RISE_START) {
+          // Collapse then settle: accelerating fall to the floor by this dot's
+          // landing time, then it simply stays at rest (the "wait" before rise).
+          const pl = gLand[i]
+          const f = easeInQuad(pl > 1e-6 ? Math.min(1, progress / pl) : 1)
+          out.push({
+            x: lerp(this.src[i].x, rest.x, f), // rest.x === src.x → straight down
+            y: lerp(this.src[i].y, rest.y, f),
+          })
+        } else {
+          // Reform: spring up out of the rubble into the next layout.
+          const e = easeOutBack((progress - GRAVITY_RISE_START) / (1 - GRAVITY_RISE_START))
+          out.push({
+            x: lerp(rest.x, this.dst[i].x, e),
+            y: lerp(rest.y, this.dst[i].y, e),
+          })
+        }
+      }
+      return out
+    }
     for (let i = 0; i < this.src.length; i++) {
       if (progress <= 0.5) {
-        const e = this.phaseIn(progress / 0.5)
+        const e = this.ease(progress / 0.5)
         out.push({
           x: lerp(this.src[i].x, way[i].x, e),
           y: lerp(this.src[i].y, way[i].y, e),
         })
       } else {
-        const e = this.phaseOut((progress - 0.5) / 0.5)
+        const e = this.ease((progress - 0.5) / 0.5)
         out.push({
           x: lerp(way[i].x, this.dst[i].x, e),
           y: lerp(way[i].y, this.dst[i].y, e),
