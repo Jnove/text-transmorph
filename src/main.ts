@@ -34,9 +34,6 @@ function frame(now: number) {
 }
 requestAnimationFrame(frame)
 
-// Re-sample when structural params change.
-store.subscribe(() => engine.rebuild())
-
 mountControls(
   document.querySelector<HTMLElement>('#controls')!,
   store,

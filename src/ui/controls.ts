@@ -4,6 +4,7 @@ import { easings, type EasingName } from '../core/easing'
 
 const STRUCTURAL = new Set<keyof Config>([
   'phrases', 'gridSpacing', 'threshold', 'fontFamily', 'fontWeight', 'fillRatio',
+  'scatterAmount', 'randomness', 'easing',
 ])
 
 export function mountControls(
