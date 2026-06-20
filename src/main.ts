@@ -7,6 +7,7 @@ import { mountControls } from './ui/controls'
 import { exportGif } from './exporters/gif'
 import { downloadBlob } from './exporters/capture'
 import { exportWebm, webmSupported } from './exporters/webm'
+import { exportMp4 } from './exporters/mp4'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
@@ -77,5 +78,18 @@ webmBtn.addEventListener('click', async () => {
     setBusy(false, 'WebM 已下载')
   } catch (e) {
     setBusy(false, 'WebM 失败：' + (e as Error).message)
+  }
+})
+
+document.querySelector('#exp-mp4')!.addEventListener('click', async () => {
+  setBusy(true, '正在准备 MP4…')
+  try {
+    const blob = await exportMp4(engine, stage, 30, engine.durationMs(),
+      (m) => (status.textContent = m))
+    downloadBlob(blob, 'transmorph.mp4')
+    setBusy(false, 'MP4 已下载')
+  } catch (e) {
+    // Graceful fallback: offer WebM instead.
+    setBusy(false, 'MP4 转码不可用，已回退请使用 WebM 导出。(' + (e as Error).message + ')')
   }
 })
