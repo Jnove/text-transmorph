@@ -24,6 +24,7 @@ export interface Config {
   randomness: number     // 0-1
   movement: MovementMode
   seed: number
+  fileName: string
 }
 
 export const defaultConfig: Config = {
@@ -45,4 +46,5 @@ export const defaultConfig: Config = {
   randomness: 0.6,
   movement: 'random',
   seed: 1,
+  fileName: 'transmorph',
 }

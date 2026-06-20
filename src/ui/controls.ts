@@ -58,6 +58,8 @@ export function mountControls(
   bind('easing', '缓动',
     `<select id="f-ease">${(Object.keys(easings) as EasingName[])
        .map((e) => `<option value="${e}"${c.easing === e ? ' selected' : ''}>${e}</option>`).join('')}</select>`)
+  bind('fileName', '文件名',
+    `<input id="f-name" type="text" value="${c.fileName}">`)
 
   container.innerHTML = rows.join('')
 
@@ -85,4 +87,5 @@ export function mountControls(
   on('#f-rand', 'input', (el) => apply('randomness', Number(el.value)))
   on('#f-move', 'change', (el) => apply('movement', el.value as MovementMode))
   on('#f-ease', 'change', (el) => apply('easing', el.value as EasingName))
+  on('#f-name', 'input', (el) => apply('fileName', el.value))
 }
