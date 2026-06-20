@@ -53,6 +53,8 @@ export class Engine {
         scatterAmount: c.scatterAmount,
         randomness: c.randomness,
         ease: easings[c.easing],
+        movement: c.movement,
+        center: { x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 },
       })
       this.systems.set(key, sys)
     }

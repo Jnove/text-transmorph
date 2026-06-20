@@ -1,5 +1,6 @@
 import type { EasingName } from '../core/easing'
 import type { SequenceMode } from '../core/sequencer'
+import type { MovementMode } from '../core/particles'
 
 export const STAGE_WIDTH = 1280
 export const STAGE_HEIGHT = 520
@@ -21,6 +22,7 @@ export interface Config {
   easing: EasingName
   scatterAmount: number  // stage px
   randomness: number     // 0-1
+  movement: MovementMode
   seed: number
 }
 
@@ -41,5 +43,6 @@ export const defaultConfig: Config = {
   easing: 'easeInOutCubic',
   scatterAmount: 120,
   randomness: 0.6,
+  movement: 'random',
   seed: 1,
 }
