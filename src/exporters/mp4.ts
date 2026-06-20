@@ -9,11 +9,19 @@ async function getFFmpeg(onProgress?: (m: string) => void): Promise<FFmpeg> {
   if (ffmpeg) return ffmpeg
   const instance = new FFmpeg()
   const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
+  const ffmpegBase = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd'
   onProgress?.('正在加载转码核心（首次约 30MB）…')
-  await instance.load({
+  const loadPromise = instance.load({
     coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
     wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+    classWorkerURL: await toBlobURL(`${ffmpegBase}/814.ffmpeg.js`, 'text/javascript'),
   })
+  let timeoutHandle: ReturnType<typeof setTimeout>
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error('转码核心加载超时')), 120000)
+  })
+  await Promise.race([loadPromise, timeoutPromise])
+  clearTimeout(timeoutHandle!)
   ffmpeg = instance
   return instance
 }
