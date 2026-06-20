@@ -81,34 +81,34 @@ describe('waypointFor (two-phase modes only)', () => {
   const center: Vec2 = { x: 0, y: 0 }
   const rd: Vec2 = { x: 1, y: 0 } // randomDir stub
 
-  it('explode waypoint sits outside the midpoint along mid-center', () => {
-    // mid={5,0}, dir={1,0}, W={5+100,0}={105,0}
-    const w = waypointFor('explode', { x: 0, y: 0 }, { x: 10, y: 0 }, center, 100, 50, rd, 1)
-    expect(w.x).toBeCloseTo(105, 6)
+  it('explode scales outward from centre (jitterFrac 0 → no random offset)', () => {
+    // mid={5,0}, f=1+100/220≈1.4545 → W≈{7.27,0}, collinear and farther out.
+    const w = waypointFor('explode', { x: 0, y: 0 }, { x: 10, y: 0 }, center, 100, 50, rd, 0)
+    expect(w.x).toBeCloseTo(5 * (1 + 100 / 220), 5)
     expect(w.y).toBeCloseTo(0, 6)
+    expect(Math.abs(w.x)).toBeGreaterThan(5) // pushed outward
   })
-  it('implode with large amount collapses to center', () => {
-    const w = waypointFor('implode', { x: 6, y: 8 }, { x: 6, y: 8 }, center, 1000, 50, rd, 1)
-    expect(w.x).toBeCloseTo(0, 6)
-    expect(w.y).toBeCloseTo(0, 6)
+  it('implode with large amount collapses near centre', () => {
+    const w = waypointFor('implode', { x: 6, y: 8 }, { x: 6, y: 8 }, center, 1000, 50, rd, 0)
+    expect(Math.hypot(w.x, w.y)).toBeLessThan(1) // ~5% of original radius 10
   })
-  it('gravity waypoint keeps mid.x and drops to floorY', () => {
-    const w = waypointFor('gravity', { x: 4, y: 0 }, { x: 6, y: 0 }, center, 100, 478, rd, 1)
+  it('gravity waypoint keeps mid.x and drops to floorY (jitterFrac 0)', () => {
+    const w = waypointFor('gravity', { x: 4, y: 0 }, { x: 6, y: 0 }, center, 100, 478, rd, 0)
     expect(w.x).toBeCloseTo(5, 6)
     expect(w.y).toBeCloseTo(478, 6)
   })
-  it('swirl waypoint is tangential to the radius (perpendicular to mid-center)', () => {
+  it('swirl waypoint is tangential to the radius (jitterFrac 0)', () => {
     // mid={5,0}, toMid={5,0}, tangent dir={0,1}; W={5, 0+100}={5,100}
-    const w = waypointFor('swirl', { x: 0, y: 0 }, { x: 10, y: 0 }, center, 100, 50, rd, 1)
+    const w = waypointFor('swirl', { x: 0, y: 0 }, { x: 10, y: 0 }, center, 100, 50, rd, 0)
     expect(w.x).toBeCloseTo(5, 6)
     expect(w.y).toBeCloseTo(100, 6)
   })
-  it('degenerate mid==center for explode uses randomDir (finite)', () => {
-    // mid={0,0}=center -> dir falls back to rd {1,0}; W={0,0}+{100,0}={100,0}
+  it('jitterFrac adds a random offset of amount×frac along randomDir', () => {
+    // degenerate mid==center: base is centre, so W = randomDir*amount*frac.
     const w = waypointFor('explode', { x: 0, y: 0 }, { x: 0, y: 0 }, center, 100, 50, rd, 1)
     expect(Number.isFinite(w.x)).toBe(true)
-    expect(Number.isFinite(w.y)).toBe(true)
     expect(w.x).toBeCloseTo(100, 6)
+    expect(w.y).toBeCloseTo(0, 6)
   })
 })
 
@@ -124,18 +124,40 @@ describe('ParticleSystem two-phase (explode)', () => {
     expect(ps.positionsAt(0)[0]).toEqual({ x: 0, y: 0 })
     expect(ps.positionsAt(1)[0]).toEqual({ x: 0, y: 10 })
   })
-  it('t=0.5 sits at the explode waypoint {0,105}', () => {
-    // mid={0,5}, dir=normalize({0,5})={0,1}, W={0,5+100}={0,105}
+  it('t=0.5 sits at the scaled explode waypoint (randomness 0)', () => {
+    // mid={0,5}, f=1+100/220 → W={0, 5*f}
     const ps = new ParticleSystem(s, d, o)
     const p = ps.positionsAt(0.5)[0]
     expect(p.x).toBeCloseTo(0, 6)
-    expect(p.y).toBeCloseTo(105, 6)
+    expect(p.y).toBeCloseTo(5 * (1 + 100 / 220), 5)
   })
   it('is continuous across the midpoint', () => {
     const ps = new ParticleSystem(s, d, o)
     const before = ps.positionsAt(0.4999)[0]
     const after = ps.positionsAt(0.5001)[0]
     expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(0.5)
+  })
+})
+
+describe('cross-mode perpendicular wobble', () => {
+  const o = {
+    seed: 1, scatterAmount: 100,
+    ease: (t: number) => t, center: { x: 5, y: 50 },
+  }
+  it('verticalCross with randomness 0 has zero horizontal wobble', () => {
+    const s: Vec2[] = [{ x: 5, y: 0 }, { x: 5, y: 100 }]
+    const ps = new ParticleSystem(s, s, { ...o, randomness: 0, movement: 'verticalCross' })
+    for (const p of ps.positionsAt(0.5)) expect(p.x).toBeCloseTo(5, 6)
+  })
+  it('verticalCross with randomness>0 wobbles horizontally, peaking mid-transition', () => {
+    const s: Vec2[] = [{ x: 5, y: 0 }, { x: 5, y: 100 }]
+    const ps = new ParticleSystem(s, s, { ...o, randomness: 0.8, movement: 'verticalCross' })
+    // endpoints stay exact (envelope sin(πt) is 0 there)
+    for (const p of ps.positionsAt(0)) expect(p.x).toBeCloseTo(5, 6)
+    for (const p of ps.positionsAt(1)) expect(p.x).toBeCloseTo(5, 6)
+    // at least one particle is displaced horizontally at the midpoint
+    const mid = ps.positionsAt(0.5)
+    expect(mid.some((p) => Math.abs(p.x - 5) > 1)).toBe(true)
   })
 })
 

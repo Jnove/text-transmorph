@@ -157,9 +157,16 @@ function normalize(v: Vec2): Vec2 {
   return l > 1e-6 ? { x: v.x / l, y: v.y / l } : { x: 0, y: 0 }
 }
 
+/** Scale that maps `scatterAmount` to a radial expand/collapse factor.
+ *  amount 0 → 1 (no change); amount 220 → explode ×2 / implode ×0. */
+const RADIAL_REF = 220
+
 /** The waypoint a two-phase particle passes through at progress=0.5. Each
  *  mode shapes the fully-dispersed midpoint; `amount` is the dispersal
- *  distance. Only called for two-phase modes. */
+ *  distance. `jitterFrac` = randomness × rand() ∈ [0, randomness): the share
+ *  of `amount` applied as a per-particle random offset, which breaks the text
+ *  structure into a cloud at the midpoint (kills the readable "shadow").
+ *  Only called for two-phase modes. */
 export function waypointFor(
   mode: MovementMode,
   src: Vec2,
@@ -168,40 +175,52 @@ export function waypointFor(
   amount: number,
   floorY: number,
   randomDir: Vec2,
-  jitter: number,
+  jitterFrac: number,
 ): Vec2 {
   const mid: Vec2 = { x: (src.x + dst.x) / 2, y: (src.y + dst.y) / 2 }
   const toMid: Vec2 = { x: mid.x - center.x, y: mid.y - center.y }
   const dist = Math.hypot(toMid.x, toMid.y)
+  const jx = randomDir.x * amount * jitterFrac
+  const jy = randomDir.y * amount * jitterFrac
   switch (mode) {
     case 'explode': {
-      const d = dist > 1e-6 ? normalize(toMid) : randomDir
-      return { x: mid.x + d.x * amount, y: mid.y + d.y * amount }
+      // Multiplicative burst: scale every point outward from centre so the
+      // core empties out, then sprinkle random jitter on top.
+      const f = 1 + amount / RADIAL_REF
+      return { x: center.x + toMid.x * f + jx, y: center.y + toMid.y * f + jy }
     }
     case 'implode': {
-      const d = normalize({ x: center.x - mid.x, y: center.y - mid.y })
-      const m = Math.min(amount, dist)
-      return { x: mid.x + d.x * m, y: mid.y + d.y * m }
+      // Tight collapse toward centre (factor → 0 as amount grows).
+      const f = Math.max(0.05, 1 - amount / RADIAL_REF)
+      return { x: center.x + toMid.x * f + jx, y: center.y + toMid.y * f + jy }
     }
     case 'gravity':
-      return { x: mid.x, y: floorY }
+      // Pile on the floor with a touch of horizontal scatter.
+      return { x: mid.x + jx * 0.5, y: floorY }
     case 'swirl': {
       const d = dist > 1e-6 ? normalize({ x: -toMid.y, y: toMid.x }) : randomDir
-      return { x: mid.x + d.x * amount, y: mid.y + d.y * amount }
+      return { x: mid.x + d.x * amount + jx, y: mid.y + d.y * amount + jy }
     }
     case 'random':
     default:
+      // Random scatter: full radial magnitude minus the jitter share.
       return {
-        x: mid.x + randomDir.x * amount * jitter,
-        y: mid.y + randomDir.y * amount * jitter,
+        x: mid.x + randomDir.x * amount * (1 - jitterFrac),
+        y: mid.y + randomDir.y * amount * (1 - jitterFrac),
       }
   }
 }
+
+/** How much of `randomness × scatterAmount` becomes peak perpendicular wobble
+ *  on the single-phase cross modes. */
+const CROSS_WOBBLE = 0.5
 
 export class ParticleSystem {
   private readonly src: Vec2[]
   private readonly dst: Vec2[]
   private readonly way: Vec2[] | null
+  /** Per-particle perpendicular wobble vector for cross modes (else null). */
+  private readonly perp: Vec2[] | null
   private readonly ease: (t: number) => number
 
   constructor(from: Vec2[], to: Vec2[], opts: ParticleSystemOptions) {
@@ -219,18 +238,37 @@ export class ParticleSystem {
       for (let i = 0; i < this.src.length; i++) {
         const angle = rand() * Math.PI * 2
         const randomDir: Vec2 = { x: Math.cos(angle), y: Math.sin(angle) }
-        const jitter = 1 - opts.randomness * rand()
+        const jitterFrac = opts.randomness * rand()
         way.push(
           waypointFor(
             movement, this.src[i], this.dst[i], center,
-            opts.scatterAmount, floorY, randomDir, jitter,
+            opts.scatterAmount, floorY, randomDir, jitterFrac,
           ),
         )
       }
       this.way = way
-    } else {
-      // Single-phase (cross / morph): straight src→dst, no waypoint.
+      this.perp = null
+    } else if (movement === 'verticalCross' || movement === 'horizontalCross') {
+      // Single-phase swap with a perpendicular wobble so the fold is not rigid:
+      // verticalCross wobbles in x, horizontalCross in y. Signed per particle,
+      // peaks mid-transition (see positionsAt), magnitude set by randomness.
+      const amp = opts.randomness * opts.scatterAmount * CROSS_WOBBLE
+      const horizontal = movement === 'verticalCross'
+      const perp: Vec2[] = []
+      for (let i = 0; i < this.src.length; i++) {
+        const signed = rand() * 2 - 1
+        perp.push(
+          horizontal
+            ? { x: signed * amp, y: 0 }
+            : { x: 0, y: signed * amp },
+        )
+      }
       this.way = null
+      this.perp = perp
+    } else {
+      // morph: straight src→dst, no waypoint, no wobble.
+      this.way = null
+      this.perp = null
     }
   }
 
@@ -238,12 +276,15 @@ export class ParticleSystem {
     const out: Vec2[] = []
     const way = this.way
     if (way === null) {
-      // Single-phase: a straight, eased lerp from src to dst.
+      // Single-phase: a straight, eased lerp from src to dst, plus (for cross
+      // modes) a perpendicular wobble that vanishes at both endpoints.
       const e = this.ease(progress)
+      const env = this.perp ? Math.sin(Math.PI * progress) : 0
       for (let i = 0; i < this.src.length; i++) {
+        const wob = this.perp ? this.perp[i] : null
         out.push({
-          x: lerp(this.src[i].x, this.dst[i].x, e),
-          y: lerp(this.src[i].y, this.dst[i].y, e),
+          x: lerp(this.src[i].x, this.dst[i].x, e) + (wob ? wob.x * env : 0),
+          y: lerp(this.src[i].y, this.dst[i].y, e) + (wob ? wob.y * env : 0),
         })
       }
       return out
