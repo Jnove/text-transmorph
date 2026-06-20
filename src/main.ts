@@ -6,6 +6,7 @@ import { blitFit } from './render/renderer'
 import { mountControls } from './ui/controls'
 import { exportGif } from './exporters/gif'
 import { downloadBlob } from './exporters/capture'
+import { exportWebm, webmSupported } from './exporters/webm'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
@@ -60,5 +61,21 @@ document.querySelector('#exp-gif')!.addEventListener('click', () => {
     setBusy(false, 'GIF 已下载')
   } catch (e) {
     setBusy(false, 'GIF 失败：' + (e as Error).message)
+  }
+})
+
+const webmBtn = document.querySelector<HTMLButtonElement>('#exp-webm')!
+if (!webmSupported()) {
+  webmBtn.disabled = true
+  webmBtn.title = '当前浏览器不支持 WebM 录制'
+}
+webmBtn.addEventListener('click', async () => {
+  setBusy(true, '正在录制 WebM…')
+  try {
+    const blob = await exportWebm(engine, stage, 30, engine.durationMs())
+    downloadBlob(blob, 'transmorph.webm')
+    setBusy(false, 'WebM 已下载')
+  } catch (e) {
+    setBusy(false, 'WebM 失败：' + (e as Error).message)
   }
 })
