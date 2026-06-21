@@ -6,32 +6,32 @@
    ============================================================ */
 
 :root {
-  /* —— 文字油墨 —— */
-  --txt:   #232838;
-  --txt2:  #5b6276;
-  --txt3:  #8a90a4;
+  /* —— 文字油墨（jnove 浓墨微绿调） —— */
+  --txt:   #20231d;
+  --txt2:  #5f6557;
+  --txt3:  #8e9483;
 
-  /* —— 磨砂玻璃配方 —— */
-  --glass-fill:   rgba(255, 255, 255, 0.55);
-  --glass-sheen:  linear-gradient(150deg, rgba(255,255,255,0.62), rgba(255,255,255,0.16) 58%, rgba(255,255,255,0.30));
-  --glass-bd:     rgba(255, 255, 255, 0.78);
+  /* —— 磨砂玻璃配方（暖米白玻璃） —— */
+  --glass-fill:   rgba(251, 252, 246, 0.56);
+  --glass-sheen:  linear-gradient(150deg, rgba(255,255,255,0.60), rgba(251,252,246,0.14) 58%, rgba(255,255,255,0.28));
+  --glass-bd:     rgba(255, 255, 255, 0.74);
   --glass-blur:   blur(20px) saturate(1.7);
-  --glass-shadow: 0 24px 56px rgba(34, 46, 92, 0.14), 0 3px 12px rgba(2, 6, 23, 0.06), inset 0 1px 0 rgba(255,255,255,0.85);
+  --glass-shadow: 0 24px 56px rgba(45, 55, 30, 0.13), 0 3px 12px rgba(45, 55, 30, 0.07), inset 0 1px 0 rgba(255,255,255,0.85);
 
   /* 控件用更薄的玻璃 */
-  --field-fill:  rgba(255, 255, 255, 0.46);
-  --field-bd:    rgba(255, 255, 255, 0.72);
+  --field-fill:  rgba(255, 255, 255, 0.44);
+  --field-bd:    rgba(255, 255, 255, 0.70);
 
-  /* —— 强调 —— */
-  --brand:       #f0604a;                                   /* 暖珊瑚：身份（呼应 jnove 橙红） */
-  --brand-soft:  rgba(240, 96, 74, 0.12);
-  --action:      #5566f0;                                   /* 靛蓝：动作 */
-  --action-tx:   #4150d8;
-  --action-soft: rgba(85, 102, 240, 0.13);
-  --grad-action: linear-gradient(135deg, #6366f1, #38bdf8); /* 胶囊 CTA 渐变 */
-  --grad-fill:   linear-gradient(90deg, #6366f1, #38bdf8 55%, #f472b6); /* 滑杆液态填充 */
+  /* —— 强调：jnove 双色（橙红=身份 / 青色=动作） —— */
+  --brand:       #d4502a;                                   /* 橙红：身份 */
+  --brand-soft:  rgba(212, 80, 42, 0.11);
+  --action:      #1f8a82;                                   /* 青色：动作 */
+  --action-tx:   #157069;
+  --action-soft: rgba(31, 138, 130, 0.13);
+  --grad-action: linear-gradient(135deg, #1f8a82, #16706a); /* 胶囊 CTA：青色渐变 */
+  --grad-fill:   linear-gradient(90deg, #1f8a82, #d4502a);  /* 滑杆液态填充：青→橙双色 */
 
-  --line: rgba(120, 130, 165, 0.20);
+  --line: rgba(95, 101, 87, 0.20);
 
   --display: 'Newsreader', 'Noto Serif SC', Georgia, serif;
   --sans:    'Hanken Grotesk', system-ui, -apple-system, 'Noto Sans SC', 'PingFang SC', 'Segoe UI', sans-serif;
@@ -43,34 +43,34 @@
   --r-md:   14px;
   --r-sm:   10px;
 
-  --mesh-base: #eef1f7;
+  --mesh-base: #f3f4ea;
 }
 
 [data-theme=dark] {
-  --txt:   #eef0f7;
-  --txt2:  #a6abbe;
-  --txt3:  #757b90;
+  --txt:   #e9ead8;
+  --txt2:  #969a83;
+  --txt3:  #6b6f5a;
 
-  --glass-fill:   rgba(26, 28, 38, 0.50);
-  --glass-sheen:  linear-gradient(150deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 58%, rgba(255,255,255,0.05));
-  --glass-bd:     rgba(255, 255, 255, 0.16);
+  --glass-fill:   rgba(29, 31, 22, 0.52);
+  --glass-sheen:  linear-gradient(150deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02) 58%, rgba(255,255,255,0.04));
+  --glass-bd:     rgba(255, 255, 255, 0.14);
   --glass-blur:   blur(22px) saturate(1.5);
-  --glass-shadow: 0 26px 60px rgba(0, 0, 0, 0.50), 0 3px 12px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.14);
+  --glass-shadow: 0 26px 60px rgba(0, 0, 0, 0.50), 0 3px 12px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.12);
 
-  --field-fill:  rgba(255, 255, 255, 0.06);
-  --field-bd:    rgba(255, 255, 255, 0.15);
+  --field-fill:  rgba(255, 255, 255, 0.055);
+  --field-bd:    rgba(255, 255, 255, 0.14);
 
-  --brand:       #ff7d68;
-  --brand-soft:  rgba(255, 125, 104, 0.16);
-  --action:      #7f93ff;
-  --action-tx:   #9aa9ff;
-  --action-soft: rgba(127, 147, 255, 0.18);
-  --grad-action: linear-gradient(135deg, #818cf8, #38bdf8);
-  --grad-fill:   linear-gradient(90deg, #818cf8, #38bdf8 55%, #f472b6);
+  --brand:       #e7693f;
+  --brand-soft:  rgba(231, 105, 63, 0.16);
+  --action:      #3bb3a8;
+  --action-tx:   #54c6bb;
+  --action-soft: rgba(59, 179, 168, 0.18);
+  --grad-action: linear-gradient(135deg, #3bb3a8, #2a8f86);
+  --grad-fill:   linear-gradient(90deg, #3bb3a8, #e7693f);
 
   --line: rgba(255, 255, 255, 0.10);
 
-  --mesh-base: #0b0d14;
+  --mesh-base: #14150f;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -89,11 +89,11 @@ body::before {
   content: ""; position: fixed; inset: -10%; z-index: -2;
   background-color: var(--mesh-base);
   background-image:
-    radial-gradient(38% 48% at 12% 16%, rgba(255, 138, 165, 0.55), transparent 62%),
-    radial-gradient(42% 52% at 86% 10%, rgba(255, 197, 138, 0.50), transparent 62%),
-    radial-gradient(48% 50% at 82% 82%, rgba(120, 206, 255, 0.52), transparent 62%),
-    radial-gradient(44% 54% at 14% 86%, rgba(150, 232, 184, 0.50), transparent 64%),
-    radial-gradient(40% 42% at 50% 52%, rgba(192, 160, 255, 0.42), transparent 62%);
+    radial-gradient(38% 48% at 12% 16%, rgba(31, 138, 130, 0.30), transparent 62%),
+    radial-gradient(42% 52% at 86% 10%, rgba(212, 80, 42, 0.26), transparent 62%),
+    radial-gradient(48% 50% at 82% 82%, rgba(31, 138, 130, 0.20), transparent 62%),
+    radial-gradient(44% 54% at 14% 86%, rgba(212, 80, 42, 0.16), transparent 64%),
+    radial-gradient(40% 42% at 50% 52%, rgba(214, 198, 150, 0.22), transparent 62%);
   animation: meshDrift 24s ease-in-out infinite alternate;
 }
 @keyframes meshDrift {
@@ -102,11 +102,11 @@ body::before {
 }
 [data-theme=dark] body::before {
   background-image:
-    radial-gradient(40% 50% at 12% 16%, rgba(99, 102, 241, 0.42), transparent 62%),
-    radial-gradient(42% 52% at 86% 10%, rgba(236, 72, 153, 0.30), transparent 62%),
-    radial-gradient(48% 50% at 82% 82%, rgba(34, 211, 238, 0.30), transparent 62%),
-    radial-gradient(44% 54% at 14% 86%, rgba(16, 185, 129, 0.28), transparent 64%),
-    radial-gradient(40% 42% at 50% 52%, rgba(139, 92, 246, 0.30), transparent 62%);
+    radial-gradient(40% 50% at 12% 16%, rgba(59, 179, 168, 0.32), transparent 62%),
+    radial-gradient(42% 52% at 86% 10%, rgba(231, 105, 63, 0.28), transparent 62%),
+    radial-gradient(48% 50% at 82% 82%, rgba(59, 179, 168, 0.22), transparent 62%),
+    radial-gradient(44% 54% at 14% 86%, rgba(231, 105, 63, 0.18), transparent 64%),
+    radial-gradient(40% 42% at 50% 52%, rgba(214, 198, 150, 0.14), transparent 62%);
 }
 
 ::selection { background: var(--brand-soft); color: var(--brand); }
@@ -229,7 +229,7 @@ body::before {
 }
 .btn-export:hover:not(:disabled) {
   color: #fff; border-color: transparent; transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(85, 102, 240, 0.34);
+  box-shadow: 0 10px 24px rgba(31, 138, 130, 0.34);
 }
 .btn-export:hover:not(:disabled)::before { opacity: 1; }
 .btn-export:active:not(:disabled) { transform: translateY(0); }
@@ -280,7 +280,7 @@ body::before {
 }
 .panel select {
   appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 34px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%238a90a4' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%238e9483' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 13px center;
 }
 
