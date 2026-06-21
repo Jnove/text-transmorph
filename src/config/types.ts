@@ -28,7 +28,7 @@ export interface Config {
 }
 
 export const defaultConfig: Config = {
-  phrases: ['灵感指南', 'AI时代的', 'Text Morph'],
+  phrases: ['Transmorph', '文字解离重组动画'],
   mode: 'sequence',
   backgroundColor: '#e2483d',
   dotColor: '#ffffff',
