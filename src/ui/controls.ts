@@ -1,11 +1,31 @@
 import type { Store } from '../config/store'
 import type { Config } from '../config/types'
 import { easings, type EasingName } from '../core/easing'
+import type { MovementMode } from '../core/particles'
 
 const STRUCTURAL = new Set<keyof Config>([
   'phrases', 'gridSpacing', 'threshold', 'fontFamily', 'fontWeight', 'fillRatio',
-  'scatterAmount', 'randomness', 'easing',
+  'scatterAmount', 'randomness', 'easing', 'movement',
 ])
+
+const MOVEMENT_LABELS: Record<MovementMode, string> = {
+  random: '随机散开',
+  explode: '径向爆炸',
+  implode: '径向收敛',
+  gravity: '重力下落',
+  verticalCross: '垂直交叉',
+  horizontalCross: '水平交叉',
+  swirl: '旋转漩涡',
+  morph: '直接变形',
+}
+
+function escapeAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 export function mountControls(
   container: HTMLElement,
@@ -36,11 +56,16 @@ export function mountControls(
   bind('fillRatio', `字号占比 (${c.fillRatio})`, `<input id="f-fill" type="range" min="0.3" max="0.9" step="0.02" value="${c.fillRatio}">`)
   bind('transitionMs', `过渡时长 (${c.transitionMs}ms)`, `<input id="f-trans" type="range" min="300" max="3000" step="50" value="${c.transitionMs}">`)
   bind('holdMs', `停留时长 (${c.holdMs}ms)`, `<input id="f-hold" type="range" min="200" max="4000" step="50" value="${c.holdMs}">`)
-  bind('scatterAmount', `散开强度 (${c.scatterAmount})`, `<input id="f-scatter" type="range" min="0" max="400" value="${c.scatterAmount}">`)
+  bind('scatterAmount', `散开强度 (${c.scatterAmount})`, `<input id="f-scatter" type="range" min="0" max="800" value="${c.scatterAmount}">`)
   bind('randomness', `随机度 (${c.randomness})`, `<input id="f-rand" type="range" min="0" max="1" step="0.05" value="${c.randomness}">`)
+  bind('movement', '点的移动方式',
+    `<select id="f-move">${(Object.keys(MOVEMENT_LABELS) as MovementMode[])
+       .map((m) => `<option value="${m}"${c.movement === m ? ' selected' : ''}>${MOVEMENT_LABELS[m]}</option>`).join('')}</select>`)
   bind('easing', '缓动',
     `<select id="f-ease">${(Object.keys(easings) as EasingName[])
        .map((e) => `<option value="${e}"${c.easing === e ? ' selected' : ''}>${e}</option>`).join('')}</select>`)
+  bind('fileName', '文件名',
+    `<input id="f-name" type="text" value="${escapeAttr(c.fileName)}">`) // escape: fileName is free user text
 
   container.innerHTML = rows.join('')
 
@@ -66,5 +91,7 @@ export function mountControls(
   on('#f-hold', 'input', (el) => apply('holdMs', Number(el.value)))
   on('#f-scatter', 'input', (el) => apply('scatterAmount', Number(el.value)))
   on('#f-rand', 'input', (el) => apply('randomness', Number(el.value)))
+  on('#f-move', 'change', (el) => apply('movement', el.value as MovementMode))
   on('#f-ease', 'change', (el) => apply('easing', el.value as EasingName))
+  on('#f-name', 'input', (el) => apply('fileName', el.value))
 }

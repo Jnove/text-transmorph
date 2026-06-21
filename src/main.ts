@@ -8,6 +8,7 @@ import { exportGif } from './exporters/gif'
 import { downloadBlob } from './exporters/capture'
 import { exportWebm, webmSupported } from './exporters/webm'
 import { exportMp4, mp4Supported } from './exporters/mp4'
+import { sanitizeFileName } from './exporters/filename'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
@@ -62,7 +63,7 @@ document.querySelector('#exp-gif')!.addEventListener('click', async () => {
   await new Promise((r) => requestAnimationFrame(() => r(null)))
   try {
     const blob = exportGif(engine, stage, 25, engine.durationMs())
-    downloadBlob(blob, 'transmorph.gif')
+    downloadBlob(blob, sanitizeFileName(store.get().fileName) + '.gif')
     setBusy(false, 'GIF 已下载')
   } catch (e) {
     setBusy(false, 'GIF 失败：' + (e as Error).message)
@@ -79,7 +80,7 @@ webmBtn.addEventListener('click', async () => {
   exporting = true
   try {
     const blob = await exportWebm(engine, stage, 30, engine.durationMs())
-    downloadBlob(blob, 'transmorph.webm')
+    downloadBlob(blob, sanitizeFileName(store.get().fileName) + '.webm')
     setBusy(false, 'WebM 已下载')
   } catch (e) {
     setBusy(false, 'WebM 失败：' + (e as Error).message)
@@ -98,7 +99,7 @@ mp4Btn.addEventListener('click', async () => {
   exporting = true
   try {
     const blob = await exportMp4(engine, stage, 30, engine.durationMs())
-    downloadBlob(blob, 'transmorph.mp4')
+    downloadBlob(blob, sanitizeFileName(store.get().fileName) + '.mp4')
     setBusy(false, 'MP4 已下载')
   } catch (e) {
     setBusy(false, 'MP4 失败：' + (e as Error).message)
