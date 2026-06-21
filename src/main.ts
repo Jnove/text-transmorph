@@ -12,7 +12,7 @@ import { sanitizeFileName } from './exporters/filename'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
-  <header class="masthead">
+  <header class="masthead glass">
     <div class="mast-id">
       <span class="mast-mark">文字<span class="mark-acc">解离</span></span>
       <span class="mast-latin">Text Transmorph</span>
@@ -23,16 +23,12 @@ app.innerHTML = `
     </button>
   </header>
   <div class="workspace">
-    <section class="stage-col">
+    <section class="stage-panel glass">
       <div class="stage-cap">
         <span class="cap-live"><i class="live-dot"></i>实时预览 · LIVE</span>
-        <span>1280 × 520</span>
+        <span class="cap-dim">1280 × 520</span>
       </div>
-      <div class="stage-plate">
-        <span class="reg reg-tl"></span><span class="reg reg-tr"></span>
-        <span class="reg reg-bl"></span><span class="reg reg-br"></span>
-        <canvas id="display"></canvas>
-      </div>
+      <div class="stage-screen"><canvas id="display"></canvas></div>
       <div class="export-tray">
         <div class="tray-head"><span class="tray-label">导出 · Export</span></div>
         <div class="export-btns">
@@ -43,7 +39,7 @@ app.innerHTML = `
         <div id="status" class="status"></div>
       </div>
     </section>
-    <aside class="panel">
+    <aside class="panel glass">
       <div class="panel-head"><span class="panel-eyebrow">控制台 · Controls</span></div>
       <div id="controls"></div>
     </aside>
