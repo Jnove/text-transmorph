@@ -31,6 +31,10 @@ app.innerHTML = `
       <div class="stage-screen"><canvas id="display"></canvas></div>
       <div class="export-tray">
         <div class="tray-head"><span class="tray-label">导出 · Export</span></div>
+        <div class="export-name">
+          <label for="f-name">文件名</label>
+          <input id="f-name" type="text" value="${defaultConfig.fileName}">
+        </div>
         <div class="export-btns">
           <button id="exp-gif" class="btn-export">GIF</button>
           <button id="exp-webm" class="btn-export">WebM</button>
@@ -87,6 +91,10 @@ mountControls(
   store,
   () => engine.rebuild(),
 )
+
+// 文件名移到左侧导出区，直接写回 store（非结构性，无需重建）
+const nameInput = document.querySelector<HTMLInputElement>('#f-name')!
+nameInput.addEventListener('input', () => store.set({ fileName: nameInput.value }))
 
 // Expose for later tasks (UI + exporters wire into these).
 ;(window as any).__transmorph = { store, engine, stage }

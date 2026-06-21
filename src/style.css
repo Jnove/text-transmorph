@@ -216,6 +216,20 @@ body::before {
   letter-spacing: 1.6px; text-transform: uppercase; color: var(--txt3);
 }
 .tray-head::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+/* 文件名：从右侧控制台移到导出区，紧贴导出按钮 */
+.export-name { display: flex; align-items: center; gap: 12px; }
+.export-name label {
+  font-family: var(--sans); font-size: 12.5px; color: var(--txt2); white-space: nowrap;
+}
+.export-name input {
+  flex: 1; min-width: 0;
+  padding: 10px 13px; font-family: var(--sans); font-size: 14px; color: var(--txt);
+  background: var(--field-fill); border: 1px solid var(--field-bd);
+  border-radius: var(--r-md); outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.export-name input:hover { border-color: var(--action); }
+.export-name input:focus { border-color: var(--action); box-shadow: 0 0 0 4px var(--action-soft); }
 .export-btns { display: flex; gap: 10px; }
 .btn-export {
   flex: 1; padding: 11px; border-radius: var(--r-pill);
@@ -284,12 +298,7 @@ body::before {
   border-color: var(--action); box-shadow: 0 0 0 4px var(--action-soft);
 }
 .panel select {
-  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 34px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%238e9483' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 13px center;
-}
-[data-theme=dark] .panel select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23969a83' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 40px;
 }
 /* 原生 option 弹层用主题实色面板（弹层无法磨砂，须给纯色背景） */
 .panel select option {
@@ -297,8 +306,27 @@ body::before {
   color: var(--txt);
 }
 
-/* —— 颜色：玻璃框色样 —— */
-.row-color { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* —— 下拉框：玻璃字段 + CSS 箭头（聚焦翻转、悬停点亮） —— */
+.select-wrap { position: relative; margin-top: 8px; }
+.select-wrap select { margin-top: 0; }          /* 间距交给 wrapper */
+.select-wrap::after {
+  content: ""; position: absolute; right: 16px; top: 50%; pointer-events: none;
+  width: 8px; height: 8px; border-radius: 1px;
+  border-right: 2px solid var(--action); border-bottom: 2px solid var(--action);
+  transform: translateY(-72%) rotate(45deg);
+  transition: transform .24s cubic-bezier(.4,0,.2,1), border-color .2s;
+}
+.select-wrap:hover select { border-color: var(--action); }
+.select-wrap:hover::after { border-color: var(--action-tx); }
+.select-wrap:focus-within::after {
+  transform: translateY(-28%) rotate(225deg);
+  border-color: var(--action-tx);
+}
+
+/* —— 颜色：背景色 / 点色 并排一行，标签在上、色条满宽 —— */
+.row-colors { display: flex; gap: 14px; }
+.color-cell { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.color-cell .swatch { width: 100%; }
 .swatch {
   position: relative; width: 50px; height: 30px; flex-shrink: 0;
   border-radius: var(--r-sm); overflow: hidden;
