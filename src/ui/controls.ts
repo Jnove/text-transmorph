@@ -34,58 +34,70 @@ function escapeAttr(s: string): string {
     .replace(/>/g, '&gt;')
 }
 
+/** A control row: a label plus an arbitrary input fragment. */
+const row = (label: string, input: string) =>
+  `<div class="row"><label class="row-label">${label}</label>${input}</div>`
+
+/** A color row rendered as a compact paper swatch. */
+const colorRow = (id: string, label: string, value: string) =>
+  `<div class="row row-color"><label class="row-label" for="${id}">${label}</label>` +
+  `<span class="swatch"><input id="${id}" type="color" value="${value}"></span></div>`
+
+/** An instrument slider: name + live mono readout chip above a gradient-fill
+ *  track. `unit` is appended to the readout (e.g. "ms"). */
+const sliderRow = (id: string, label: string, unit: string, value: number, attrs: string) =>
+  `<div class="row row-slider">` +
+  `<div class="row-top"><label class="row-label" for="${id}">${label}</label>` +
+  `<output id="${id}-out" class="readout">${value}${unit}</output></div>` +
+  `<input id="${id}" type="range" ${attrs} value="${value}"></div>`
+
+/** Group several rows under an uppercase section label with a hairline rule. */
+const group = (label: string, ...rows: string[]) =>
+  `<section class="ctl-group"><div class="ctl-label">${label}</div>${rows.join('')}</section>`
+
+const option = <T extends string>(value: T, current: T, text: string) =>
+  `<option value="${value}"${current === value ? ' selected' : ''}>${text}</option>`
+
 export function mountControls(
   container: HTMLElement,
   store: Store,
   onStructuralChange: () => void,
 ): void {
   const c = store.get()
-  const rows: string[] = []
-  const bind = (_key: keyof Config, label: string, input: string) =>
-    rows.push(`<div class="row"><label>${label}</label>${input}</div>`)
-  // Sliders carry an id'd label so the displayed number can update live while dragging.
-  const slider = (
-    id: string,
-    label: (v: string) => string,
-    value: number,
-    attrs: string,
-  ) =>
-    rows.push(
-      `<div class="row"><label id="${id}-label">${label(String(value))}</label>` +
-        `<input id="${id}" type="range" ${attrs} value="${value}"></div>`,
-    )
 
-  bind('phrases', '文字（每行一段）',
-    `<textarea id="f-phrases" rows="3">${c.phrases.join('\n')}</textarea>`)
-  bind('mode', '模式',
-    `<select id="f-mode">
-       <option value="sequence"${c.mode === 'sequence' ? ' selected' : ''}>多段轮播</option>
-       <option value="breathe"${c.mode === 'breathe' ? ' selected' : ''}>单段呼吸</option>
-     </select>`)
-  bind('backgroundColor', '背景色', `<input id="f-bg" type="color" value="${c.backgroundColor}">`)
-  bind('dotColor', '点色', `<input id="f-dot" type="color" value="${c.dotColor}">`)
-  bind('dotShape', '点形状',
-    `<select id="f-shape">
-       <option value="square"${c.dotShape === 'square' ? ' selected' : ''}>方块</option>
-       <option value="circle"${c.dotShape === 'circle' ? ' selected' : ''}>圆点</option>
-     </select>`)
-  slider('f-size', (v) => `点大小 (${v})`, c.dotSize, 'min="2" max="24"')
-  slider('f-grid', (v) => `网格密度 (${v})`, c.gridSpacing, 'min="4" max="60"')
-  slider('f-fill', (v) => `字号占比 (${v})`, c.fillRatio, 'min="0.3" max="0.9" step="0.02"')
-  slider('f-trans', (v) => `过渡时长 (${v}ms)`, c.transitionMs, 'min="300" max="3000" step="50"')
-  slider('f-hold', (v) => `停留时长 (${v}ms)`, c.holdMs, 'min="200" max="4000" step="50"')
-  slider('f-scatter', (v) => `散开强度 (${v})`, c.scatterAmount, 'min="0" max="800"')
-  slider('f-rand', (v) => `随机度 (${v})`, c.randomness, 'min="0" max="1" step="0.05"')
-  bind('movement', '点的移动方式',
+  const modeSel =
+    `<select id="f-mode">${option('sequence', c.mode, '多段轮播')}${option('breathe', c.mode, '单段呼吸')}</select>`
+  const shapeSel =
+    `<select id="f-shape">${option('square', c.dotShape, '方块')}${option('circle', c.dotShape, '圆点')}</select>`
+  const moveSel =
     `<select id="f-move">${(Object.keys(MOVEMENT_LABELS) as MovementMode[])
-       .map((m) => `<option value="${m}"${c.movement === m ? ' selected' : ''}>${MOVEMENT_LABELS[m]}</option>`).join('')}</select>`)
-  bind('easing', '缓动',
+      .map((m) => option(m, c.movement, MOVEMENT_LABELS[m])).join('')}</select>`
+  const easeSel =
     `<select id="f-ease">${(Object.keys(easings) as EasingName[])
-       .map((e) => `<option value="${e}"${c.easing === e ? ' selected' : ''}>${EASING_LABELS[e]}</option>`).join('')}</select>`)
-  bind('fileName', '文件名',
-    `<input id="f-name" type="text" value="${escapeAttr(c.fileName)}">`) // escape: fileName is free user text
+      .map((e) => option(e, c.easing, EASING_LABELS[e])).join('')}</select>`
 
-  container.innerHTML = rows.join('')
+  container.innerHTML =
+    group('文字内容',
+      row('文案（每行一段）', `<textarea id="f-phrases" rows="3">${c.phrases.join('\n')}</textarea>`),
+      row('播放模式', modeSel)) +
+    group('颜色',
+      colorRow('f-bg', '背景色', c.backgroundColor),
+      colorRow('f-dot', '点色', c.dotColor)) +
+    group('点阵',
+      row('点形状', shapeSel),
+      sliderRow('f-size', '点大小', '', c.dotSize, 'min="2" max="24"'),
+      sliderRow('f-grid', '网格密度', '', c.gridSpacing, 'min="4" max="60"'),
+      sliderRow('f-fill', '字号占比', '', c.fillRatio, 'min="0.3" max="0.9" step="0.02"')) +
+    group('运动',
+      row('移动方式', moveSel),
+      row('缓动曲线', easeSel),
+      sliderRow('f-scatter', '散开强度', '', c.scatterAmount, 'min="0" max="800"'),
+      sliderRow('f-rand', '随机度', '', c.randomness, 'min="0" max="1" step="0.05"')) +
+    group('节奏',
+      sliderRow('f-trans', '过渡时长', 'ms', c.transitionMs, 'min="300" max="3000" step="50"'),
+      sliderRow('f-hold', '停留时长', 'ms', c.holdMs, 'min="200" max="4000" step="50"')) +
+    group('导出',
+      row('文件名', `<input id="f-name" type="text" value="${escapeAttr(c.fileName)}">`))
 
   const apply = (key: keyof Config, value: Config[keyof Config]) => {
     store.set({ [key]: value } as Partial<Config>)
@@ -95,11 +107,18 @@ export function mountControls(
     const el = container.querySelector<HTMLInputElement>(id)
     if (el) el.addEventListener(ev, () => fn(el))
   }
-  // Slider handler: refresh the live label, then apply the numeric value.
-  const onSlider = (id: string, key: keyof Config, label: (v: string) => string) =>
+
+  // Fill the gradient track to the thumb position (0–100% along min→max).
+  const setFill = (el: HTMLInputElement) => {
+    const min = Number(el.min), max = Number(el.max), v = Number(el.value)
+    el.style.setProperty('--fill', (max > min ? ((v - min) / (max - min)) * 100 : 0) + '%')
+  }
+  // Slider handler: refresh the live readout, repaint the fill, then apply.
+  const onSlider = (id: string, key: keyof Config, unit: string) =>
     on(`#${id}`, 'input', (el) => {
-      const lbl = container.querySelector(`#${id}-label`)
-      if (lbl) lbl.textContent = label(el.value)
+      const out = container.querySelector(`#${id}-out`)
+      if (out) out.textContent = el.value + unit
+      setFill(el)
       apply(key, Number(el.value))
     })
 
@@ -109,14 +128,17 @@ export function mountControls(
   on('#f-bg', 'input', (el) => apply('backgroundColor', el.value))
   on('#f-dot', 'input', (el) => apply('dotColor', el.value))
   on('#f-shape', 'change', (el) => apply('dotShape', el.value as Config['dotShape']))
-  onSlider('f-size', 'dotSize', (v) => `点大小 (${v})`)
-  onSlider('f-grid', 'gridSpacing', (v) => `网格密度 (${v})`)
-  onSlider('f-fill', 'fillRatio', (v) => `字号占比 (${v})`)
-  onSlider('f-trans', 'transitionMs', (v) => `过渡时长 (${v}ms)`)
-  onSlider('f-hold', 'holdMs', (v) => `停留时长 (${v}ms)`)
-  onSlider('f-scatter', 'scatterAmount', (v) => `散开强度 (${v})`)
-  onSlider('f-rand', 'randomness', (v) => `随机度 (${v})`)
+  onSlider('f-size', 'dotSize', '')
+  onSlider('f-grid', 'gridSpacing', '')
+  onSlider('f-fill', 'fillRatio', '')
+  onSlider('f-trans', 'transitionMs', 'ms')
+  onSlider('f-hold', 'holdMs', 'ms')
+  onSlider('f-scatter', 'scatterAmount', '')
+  onSlider('f-rand', 'randomness', '')
   on('#f-move', 'change', (el) => apply('movement', el.value as MovementMode))
   on('#f-ease', 'change', (el) => apply('easing', el.value as EasingName))
   on('#f-name', 'input', (el) => apply('fileName', el.value))
+
+  // Paint each slider's initial fill.
+  container.querySelectorAll<HTMLInputElement>('.row-slider input[type=range]').forEach(setFill)
 }

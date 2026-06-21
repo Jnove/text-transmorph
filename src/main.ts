@@ -12,15 +12,59 @@ import { sanitizeFileName } from './exporters/filename'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
-  <div id="stage-wrap"><canvas id="display"></canvas></div>
-  <div id="panel"><h1>文字解离 · Text Transmorph</h1><div id="controls"></div>
-    <div class="export-btns">
-      <button id="exp-gif">GIF</button>
-      <button id="exp-webm">WebM</button>
-      <button id="exp-mp4">MP4</button>
+  <header class="masthead">
+    <div class="mast-id">
+      <span class="mast-mark">文字<span class="mark-acc">解离</span></span>
+      <span class="mast-latin">Text Transmorph</span>
     </div>
-    <div id="status"></div>
+    <p class="mast-tagline">把文字拆成点阵，再让它们重新聚成下一句。</p>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="切换深浅色主题">
+      <span class="tt-icon">☾</span>
+    </button>
+  </header>
+  <div class="workspace">
+    <section class="stage-col">
+      <div class="stage-cap">
+        <span class="cap-live"><i class="live-dot"></i>实时预览 · LIVE</span>
+        <span>1280 × 520</span>
+      </div>
+      <div class="stage-plate">
+        <span class="reg reg-tl"></span><span class="reg reg-tr"></span>
+        <span class="reg reg-bl"></span><span class="reg reg-br"></span>
+        <canvas id="display"></canvas>
+      </div>
+      <div class="export-tray">
+        <div class="tray-head"><span class="tray-label">导出 · Export</span></div>
+        <div class="export-btns">
+          <button id="exp-gif" class="btn-export">GIF</button>
+          <button id="exp-webm" class="btn-export">WebM</button>
+          <button id="exp-mp4" class="btn-export">MP4</button>
+        </div>
+        <div id="status" class="status"></div>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-head"><span class="panel-eyebrow">控制台 · Controls</span></div>
+      <div id="controls"></div>
+    </aside>
   </div>`
+
+// 深浅色主题切换：默认跟随保存值，否则浅色（暖纸），呼应 jnove 的双主题
+const rootEl = document.documentElement
+const savedTheme = localStorage.getItem('tm-theme')
+if (savedTheme) rootEl.setAttribute('data-theme', savedTheme)
+const themeBtn = document.querySelector<HTMLButtonElement>('#theme-toggle')!
+const themeIcon = themeBtn.querySelector<HTMLElement>('.tt-icon')!
+const syncThemeIcon = () => {
+  themeIcon.textContent = rootEl.getAttribute('data-theme') === 'dark' ? '☀' : '☾'
+}
+syncThemeIcon()
+themeBtn.addEventListener('click', () => {
+  const next = rootEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+  rootEl.setAttribute('data-theme', next)
+  localStorage.setItem('tm-theme', next)
+  syncThemeIcon()
+})
 
 const stage = document.createElement('canvas')
 const store = createStore(defaultConfig)
