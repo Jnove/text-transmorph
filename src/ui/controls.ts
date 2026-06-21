@@ -75,27 +75,31 @@ export function mountControls(
     `<select id="f-ease">${(Object.keys(easings) as EasingName[])
       .map((e) => option(e, c.easing, EASING_LABELS[e])).join('')}</select>`)
 
+  // 两栏显式分配，按高度配平（左：内容+点阵；右：颜色+运动+节奏）
+  const col = (...groups: string[]) => `<div class="ctl-col">${groups.join('')}</div>`
   container.innerHTML =
-    group('文字内容',
-      row('文案（每行一段）', `<textarea id="f-phrases" rows="3">${c.phrases.join('\n')}</textarea>`),
-      row('播放模式', modeSel)) +
-    group('颜色',
-      colorPair(
-        colorCell('f-bg', '背景色', c.backgroundColor),
-        colorCell('f-dot', '点色', c.dotColor))) +
-    group('点阵',
-      row('点形状', shapeSel),
-      sliderRow('f-size', '点大小', '', c.dotSize, 'min="2" max="24"'),
-      sliderRow('f-grid', '网格密度', '', c.gridSpacing, 'min="4" max="60"'),
-      sliderRow('f-fill', '字号占比', '', c.fillRatio, 'min="0.3" max="0.9" step="0.02"')) +
-    group('运动',
-      row('移动方式', moveSel),
-      row('缓动曲线', easeSel),
-      sliderRow('f-scatter', '散开强度', '', c.scatterAmount, 'min="0" max="800"'),
-      sliderRow('f-rand', '随机度', '', c.randomness, 'min="0" max="1" step="0.05"')) +
-    group('节奏',
-      sliderRow('f-trans', '过渡时长', 'ms', c.transitionMs, 'min="300" max="3000" step="50"'),
-      sliderRow('f-hold', '停留时长', 'ms', c.holdMs, 'min="200" max="4000" step="50"'))
+    col(
+      group('文字内容',
+        row('文案（每行一段）', `<textarea id="f-phrases" rows="3">${c.phrases.join('\n')}</textarea>`),
+        row('播放模式', modeSel)),
+      group('点阵',
+        row('点形状', shapeSel),
+        sliderRow('f-size', '点大小', '', c.dotSize, 'min="2" max="24"'),
+        sliderRow('f-grid', '网格密度', '', c.gridSpacing, 'min="4" max="60"'),
+        sliderRow('f-fill', '字号占比', '', c.fillRatio, 'min="0.3" max="0.9" step="0.02"'))) +
+    col(
+      group('颜色',
+        colorPair(
+          colorCell('f-bg', '背景色', c.backgroundColor),
+          colorCell('f-dot', '点色', c.dotColor))),
+      group('运动',
+        row('移动方式', moveSel),
+        row('缓动曲线', easeSel),
+        sliderRow('f-scatter', '散开强度', '', c.scatterAmount, 'min="0" max="800"'),
+        sliderRow('f-rand', '随机度', '', c.randomness, 'min="0" max="1" step="0.05"')),
+      group('节奏',
+        sliderRow('f-trans', '过渡时长', 'ms', c.transitionMs, 'min="300" max="3000" step="50"'),
+        sliderRow('f-hold', '停留时长', 'ms', c.holdMs, 'min="200" max="4000" step="50"')))
 
   const apply = (key: keyof Config, value: Config[keyof Config]) => {
     store.set({ [key]: value } as Partial<Config>)
@@ -138,4 +142,91 @@ export function mountControls(
 
   // Paint each slider's initial fill.
   container.querySelectorAll<HTMLInputElement>('.row-slider input[type=range]').forEach(setFill)
+
+  // Replace each native <select> popup with a soft glass dropdown.
+  container.querySelectorAll<HTMLElement>('.select-wrap').forEach(enhanceSelect)
+}
+
+/**
+ * Progressive enhancement: keep the native <select> (hidden) as the source of
+ * truth — so existing `change` bindings keep firing — and overlay a styled
+ * trigger + frosted option list that matches the liquid-glass UI.
+ */
+function enhanceSelect(wrap: HTMLElement): void {
+  const select = wrap.querySelector('select')
+  if (!select) return
+  wrap.classList.add('cs-ready')
+  select.tabIndex = -1
+  select.setAttribute('aria-hidden', 'true')
+
+  const trigger = document.createElement('button')
+  trigger.type = 'button'
+  trigger.className = 'cs-trigger'
+  trigger.setAttribute('aria-haspopup', 'listbox')
+  trigger.setAttribute('aria-expanded', 'false')
+  const valueEl = document.createElement('span')
+  valueEl.className = 'cs-value'
+  const chevron = document.createElement('span')
+  chevron.className = 'cs-chevron'
+  trigger.append(valueEl, chevron)
+
+  const list = document.createElement('div')
+  list.className = 'cs-list'
+  list.setAttribute('role', 'listbox')
+  const items = Array.from(select.options).map((opt) => {
+    const item = document.createElement('div')
+    item.className = 'cs-option'
+    item.setAttribute('role', 'option')
+    item.textContent = opt.textContent
+    item.dataset.value = opt.value
+    item.addEventListener('click', () => { commit(opt.value); close(true) })
+    list.appendChild(item)
+    return item
+  })
+
+  const sync = () => {
+    valueEl.textContent = select.options[select.selectedIndex]?.textContent ?? ''
+    items.forEach((it) =>
+      it.setAttribute('aria-selected', it.dataset.value === select.value ? 'true' : 'false'))
+  }
+  const commit = (v: string) => {
+    if (select.value === v) return
+    select.value = v
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+    sync()
+  }
+  let open = false
+  const openList = () => {
+    open = true
+    wrap.classList.add('cs-open')
+    trigger.setAttribute('aria-expanded', 'true')
+    list.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' })
+  }
+  const close = (focus: boolean) => {
+    open = false
+    wrap.classList.remove('cs-open')
+    trigger.setAttribute('aria-expanded', 'false')
+    if (focus) trigger.focus()
+  }
+
+  trigger.addEventListener('click', (e) => { e.stopPropagation(); open ? close(false) : openList() })
+  trigger.addEventListener('keydown', (e) => {
+    const i = select.selectedIndex
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); commit(select.options[Math.min(i + 1, select.options.length - 1)].value)
+      if (!open) openList()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault(); commit(select.options[Math.max(i - 1, 0)].value)
+      if (!open) openList()
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); open ? close(false) : openList()
+    } else if (e.key === 'Escape') {
+      close(false)
+    }
+  })
+  list.addEventListener('click', (e) => e.stopPropagation())
+  document.addEventListener('click', () => { if (open) close(false) })
+
+  wrap.append(trigger, list)
+  sync()
 }

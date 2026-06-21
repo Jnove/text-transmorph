@@ -258,8 +258,9 @@ body::before {
 .panel { width: 430px; flex-shrink: 0; padding: 20px 22px 22px; }
 .panel-head { margin-bottom: 18px; }
 
-/* 控件分两列码放，把竖向过长的控制台压成与左侧预览相近的高度 */
-#controls { column-count: 2; column-gap: 24px; }
+/* 控件分两列码放（显式分栏，按高度配平），把控制台压成与左侧预览相近的高度 */
+#controls { display: flex; gap: 24px; align-items: flex-start; }
+.ctl-col { flex: 1; min-width: 0; }
 .panel-eyebrow {
   display: flex; align-items: center; gap: 12px;
   font-family: var(--sans); font-size: 11px; font-weight: 600;
@@ -267,7 +268,7 @@ body::before {
 }
 .panel-eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
-.ctl-group { margin-bottom: 18px; break-inside: avoid; -webkit-column-break-inside: avoid; }
+.ctl-group { margin-bottom: 18px; }
 .ctl-group:last-child { margin-bottom: 0; }
 .ctl-label {
   display: flex; align-items: center; gap: 12px;
@@ -300,27 +301,56 @@ body::before {
 .panel select {
   appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 40px;
 }
-/* 原生 option 弹层用主题实色面板（弹层无法磨砂，须给纯色背景） */
-.panel select option {
-  background: var(--mesh-base);
-  color: var(--txt);
-}
+/* 原生 option 弹层用主题实色面板（无脚本兜底时才会看到） */
+.panel select option { background: var(--mesh-base); color: var(--txt); }
 
-/* —— 下拉框：玻璃字段 + CSS 箭头（聚焦翻转、悬停点亮） —— */
+/* —— 自定义下拉框：磨砂玻璃触发器 + 柔和玻璃选项面板 —— */
 .select-wrap { position: relative; margin-top: 8px; }
-.select-wrap select { margin-top: 0; }          /* 间距交给 wrapper */
-.select-wrap::after {
-  content: ""; position: absolute; right: 16px; top: 50%; pointer-events: none;
-  width: 8px; height: 8px; border-radius: 1px;
-  border-right: 2px solid var(--action); border-bottom: 2px solid var(--action);
-  transform: translateY(-72%) rotate(45deg);
-  transition: transform .24s cubic-bezier(.4,0,.2,1), border-color .2s;
+/* 增强后隐藏原生 select，仅留作状态来源；无脚本时原生 select 仍可用 */
+.select-wrap.cs-ready > select {
+  position: absolute; top: 0; left: 0; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none; margin: 0;
 }
-.select-wrap:hover select { border-color: var(--action); }
-.select-wrap:hover::after { border-color: var(--action-tx); }
-.select-wrap:focus-within::after {
-  transform: translateY(-28%) rotate(225deg);
-  border-color: var(--action-tx);
+.select-wrap.cs-open { z-index: 20; }
+
+.cs-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; padding: 10px 14px; text-align: left;
+  font-family: var(--sans); font-size: 14px; color: var(--txt);
+  background: var(--field-fill); border: 1px solid var(--field-bd);
+  border-radius: var(--r-md); cursor: pointer;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.cs-trigger:hover { border-color: var(--action); background: var(--action-soft); }
+.cs-open .cs-trigger { border-color: var(--action); box-shadow: 0 0 0 4px var(--action-soft); }
+.cs-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-chevron {
+  width: 8px; height: 8px; flex-shrink: 0; border-radius: 1px;
+  border-right: 2px solid var(--action); border-bottom: 2px solid var(--action);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .26s cubic-bezier(.34,1.4,.5,1), border-color .2s;
+}
+.cs-open .cs-chevron { transform: translateY(2px) rotate(225deg); border-color: var(--action-tx); }
+
+.cs-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30;
+  padding: 6px; border-radius: var(--r-md);
+  background-color: var(--glass-fill); background-image: var(--glass-sheen);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-bd); box-shadow: var(--glass-shadow);
+  max-height: 264px; overflow-y: auto;
+  opacity: 0; transform: translateY(-8px) scale(.97); transform-origin: top center;
+  pointer-events: none; transition: opacity .18s ease, transform .2s cubic-bezier(.34,1.2,.5,1);
+}
+.cs-open .cs-list { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.cs-option {
+  padding: 9px 12px; border-radius: var(--r-sm); cursor: pointer;
+  font-family: var(--sans); font-size: 14px; color: var(--txt2);
+  transition: background .15s, color .15s;
+}
+.cs-option:hover { background: var(--field-fill); color: var(--txt); }
+.cs-option[aria-selected=true] {
+  background: var(--action-soft); color: var(--action-tx); font-weight: 600;
 }
 
 /* —— 颜色：背景色 / 点色 并排一行，标签在上、色条满宽 —— */
@@ -377,11 +407,11 @@ body::before {
 @media (max-width: 920px) {
   .workspace { flex-direction: column; }
   .panel { width: 100%; }
-  /* 堆叠后控制台仍分两列，铺满整宽 */
-  #controls { column-count: 2; column-gap: 28px; }
+  /* 堆叠后控制台仍并排两列，铺满整宽 */
+  #controls { gap: 28px; }
 }
 @media (max-width: 560px) {
-  #controls { column-count: 1; }
+  #controls { flex-direction: column; }
 }
 @media (max-width: 560px) {
   #app { padding: 14px; gap: 16px; }
