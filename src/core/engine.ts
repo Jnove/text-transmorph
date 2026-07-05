@@ -94,6 +94,8 @@ export class Engine {
     const style: DrawStyle = {
       backgroundColor: c.backgroundColor,
       dotColor: c.dotColor,
+      dotColor2: c.dotColor2,
+      gradient: c.gradient,
       dotShape: c.dotShape,
       dotSize: c.dotSize,
     }

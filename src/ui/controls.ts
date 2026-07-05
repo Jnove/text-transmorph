@@ -137,7 +137,9 @@ export function mountControls(
       group('颜色',
         colorPair(
           colorCell('f-bg', '背景色', c.backgroundColor),
-          colorCell('f-dot', '点色', c.dotColor))),
+          colorCell('f-dot', '点色', c.dotColor)),
+        row('渐变填充', `<input id="f-grad" class="toggle" type="checkbox"${c.gradient ? ' checked' : ''}>`),
+        colorPair(colorCell('f-dot2', '渐变末色', c.dotColor2), '')),
       group('运动',
         row('移动方式', moveSel),
         row('缓动曲线', easeSel),
@@ -179,6 +181,8 @@ export function mountControls(
   on('#f-mode', 'change', (el) => apply('mode', el.value as Config['mode']))
   on('#f-bg', 'input', (el) => apply('backgroundColor', el.value))
   on('#f-dot', 'input', (el) => apply('dotColor', el.value))
+  on('#f-dot2', 'input', (el) => apply('dotColor2', el.value))
+  on('#f-grad', 'change', (el) => apply('gradient', el.checked))
   on('#f-shape', 'change', (el) => apply('dotShape', el.value as Config['dotShape']))
   onSlider('f-size', 'dotSize', '')
   onSlider('f-grid', 'gridSpacing', '')

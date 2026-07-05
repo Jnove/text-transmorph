@@ -3,6 +3,8 @@ import type { Vec2 } from '../core/types'
 export type DrawStyle = {
   backgroundColor: string
   dotColor: string
+  dotColor2: string
+  gradient: boolean
   dotShape: 'square' | 'circle'
   dotSize: number
 }
@@ -17,7 +19,16 @@ export function drawStage(
 ): void {
   ctx.fillStyle = style.backgroundColor
   ctx.fillRect(0, 0, width, height)
-  ctx.fillStyle = style.dotColor
+  if (style.gradient) {
+    // A left→right gradient spanning the stage colours every dot by its x
+    // position in one shot — no per-dot fillStyle churn.
+    const g = ctx.createLinearGradient(0, 0, width, 0)
+    g.addColorStop(0, style.dotColor)
+    g.addColorStop(1, style.dotColor2)
+    ctx.fillStyle = g
+  } else {
+    ctx.fillStyle = style.dotColor
+  }
   const s = style.dotSize
   const square = style.dotShape === 'square'
   for (let i = 0; i < points.length; i++) {

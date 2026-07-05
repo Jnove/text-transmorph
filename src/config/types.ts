@@ -20,6 +20,8 @@ export interface Config {
   stageHeight: number
   backgroundColor: string
   dotColor: string
+  dotColor2: string      // second stop when gradient is on
+  gradient: boolean      // colour dots left→right across the two stops
   dotShape: 'square' | 'circle'
   dotSize: number        // stage px
   gridSpacing: number    // stage px (cell size; controls density)
@@ -45,6 +47,8 @@ export const defaultConfig: Config = {
   stageHeight: STAGE_HEIGHT,
   backgroundColor: '#e2483d',
   dotColor: '#ffffff',
+  dotColor2: '#ffd34e',
+  gradient: false,
   dotShape: 'square',
   dotSize: 10,
   gridSpacing: 14,
