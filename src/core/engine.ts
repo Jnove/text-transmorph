@@ -1,6 +1,5 @@
 import type { Vec2 } from './types'
 import type { Store } from '../config/store'
-import { STAGE_WIDTH, STAGE_HEIGHT } from '../config/types'
 import { sampleText, ALPHA_THRESHOLD, type SampleOptions } from './sampler'
 import { ParticleSystem, idleOffset } from './particles'
 import { sequenceState, cycleDuration } from './sequencer'
@@ -8,6 +7,7 @@ import { easings } from './easing'
 import { drawStage, type DrawStyle } from '../render/renderer'
 
 export class Engine {
+  private stage: HTMLCanvasElement
   private ctx: CanvasRenderingContext2D
   private targets: Vec2[][] = []
   private systems = new Map<string, ParticleSystem>()
@@ -16,20 +16,22 @@ export class Engine {
     stage: HTMLCanvasElement,
     private store: Store,
   ) {
-    stage.width = STAGE_WIDTH
-    stage.height = STAGE_HEIGHT
+    this.stage = stage
     this.ctx = stage.getContext('2d')!
     this.resample()
   }
 
-  /** Re-rasterize every phrase into dot targets. Expensive (canvas draw +
-   *  getImageData per phrase) — only for changes that alter the sampled dots
-   *  (text, grid, font). Motion-only changes should use resetSystems(). */
+  /** Re-rasterize every phrase into dot targets, resizing the stage canvas to
+   *  the current output dimensions first. Expensive (canvas draw + getImageData
+   *  per phrase) — only for changes that alter the sampled dots (text, grid,
+   *  font, size). Motion-only changes should use resetSystems(). */
   resample(): void {
     const c = this.store.get()
+    this.stage.width = c.stageWidth
+    this.stage.height = c.stageHeight
     const opts: SampleOptions = {
-      width: STAGE_WIDTH,
-      height: STAGE_HEIGHT,
+      width: c.stageWidth,
+      height: c.stageHeight,
       cell: Math.max(2, Math.round(c.gridSpacing)),
       threshold: ALPHA_THRESHOLD,
       fontFamily: c.fontFamily,
@@ -64,7 +66,7 @@ export class Engine {
         stagger: c.stagger,
         ease: easings[c.easing],
         movement: c.movement,
-        center: { x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 },
+        center: { x: c.stageWidth / 2, y: c.stageHeight / 2 },
       })
       this.systems.set(key, sys)
     }
@@ -95,6 +97,6 @@ export class Engine {
       dotShape: c.dotShape,
       dotSize: c.dotSize,
     }
-    drawStage(this.ctx, STAGE_WIDTH, STAGE_HEIGHT, points, style, scales)
+    drawStage(this.ctx, c.stageWidth, c.stageHeight, points, style, scales)
   }
 }

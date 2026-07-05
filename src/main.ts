@@ -1,5 +1,5 @@
 import './style.css'
-import { STAGE_WIDTH, STAGE_HEIGHT, defaultConfig } from './config/types'
+import { defaultConfig } from './config/types'
 import { createStore } from './config/store'
 import { encodeConfig, pickInitial } from './config/persist'
 import { Engine } from './core/engine'
@@ -35,7 +35,7 @@ app.innerHTML = `
     <section class="stage-panel glass">
       <div class="stage-cap">
         <span class="cap-live"><i class="live-dot"></i>实时预览 · LIVE</span>
-        <span class="cap-dim">1280 × 520</span>
+        <span class="cap-dim">${initialConfig.stageWidth} × ${initialConfig.stageHeight}</span>
       </div>
       <div class="stage-screen"><canvas id="display"></canvas></div>
       <div class="export-tray">
@@ -95,8 +95,19 @@ store.subscribe(() => {
 })
 
 const display = document.querySelector<HTMLCanvasElement>('#display')!
-display.width = STAGE_WIDTH
-display.height = STAGE_HEIGHT
+const capDim = document.querySelector<HTMLElement>('.cap-dim')!
+// Keep the preview canvas buffer and its layout aspect-ratio in step with the
+// chosen output size (the stage canvas itself is resized inside Engine.resample).
+function syncDisplaySize() {
+  const { stageWidth: w, stageHeight: h } = store.get()
+  if (display.width !== w || display.height !== h) {
+    display.width = w
+    display.height = h
+    display.style.aspectRatio = `${w} / ${h}`
+    capDim.textContent = `${w} × ${h}`
+  }
+}
+syncDisplaySize()
 const dctx = display.getContext('2d')!
 
 let start = performance.now()
@@ -113,7 +124,10 @@ requestAnimationFrame(frame)
 mountControls(
   document.querySelector<HTMLElement>('#controls')!,
   store,
-  { resample: () => engine.resample(), resetSystems: () => engine.resetSystems() },
+  {
+    resample: () => { engine.resample(); syncDisplaySize() },
+    resetSystems: () => engine.resetSystems(),
+  },
 )
 
 // 文件名移到左侧导出区，直接写回 store（非结构性，无需重建）

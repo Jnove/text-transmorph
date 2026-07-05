@@ -1,5 +1,5 @@
 import type { Store } from '../config/store'
-import type { Config } from '../config/types'
+import { type Config, STAGE_PRESETS } from '../config/types'
 import { easings, type EasingName } from '../core/easing'
 import type { MovementMode } from '../core/particles'
 
@@ -112,6 +112,11 @@ export function mountControls(
   const weightSel = selectWrap(
     `<select id="f-weight">${WEIGHT_OPTIONS
       .map((w) => option(w.value, c.fontWeight, w.label)).join('')}</select>`)
+  const curPreset = STAGE_PRESETS.find(
+    (p) => p.width === c.stageWidth && p.height === c.stageHeight)?.value ?? STAGE_PRESETS[0].value
+  const sizeSel = selectWrap(
+    `<select id="f-size-preset">${STAGE_PRESETS
+      .map((p) => option(p.value, curPreset, p.label)).join('')}</select>`)
 
   // 两栏显式分配，按高度配平（左：内容+点阵；右：颜色+运动+节奏）
   const col = (...groups: string[]) => `<div class="ctl-col">${groups.join('')}</div>`
@@ -123,6 +128,7 @@ export function mountControls(
         row('字体', fontSel),
         row('字重', weightSel)),
       group('点阵',
+        row('画布尺寸', sizeSel),
         row('点形状', shapeSel),
         sliderRow('f-size', '点大小', '', c.dotSize, 'min="2" max="24"'),
         sliderRow('f-grid', '网格密度', '', c.gridSpacing, 'min="4" max="60"'),
@@ -189,6 +195,13 @@ export function mountControls(
   on('#f-weight', 'change', (el) => apply('fontWeight', el.value))
   // Re-roll the seed → same params, a freshly scattered form.
   on('#f-reroll', 'click', () => apply('seed', Math.floor(Math.random() * 1e9)))
+  // Size preset sets both dimensions at once, then re-samples at the new size.
+  on('#f-size-preset', 'change', (el) => {
+    const p = STAGE_PRESETS.find((pp) => pp.value === el.value)
+    if (!p) return
+    store.set({ stageWidth: p.width, stageHeight: p.height })
+    actions.resample()
+  })
 
   // Paint each slider's initial fill.
   container.querySelectorAll<HTMLInputElement>('.row-slider input[type=range]').forEach(setFill)
