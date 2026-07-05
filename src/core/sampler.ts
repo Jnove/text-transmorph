@@ -25,34 +25,51 @@ export function sampleWithRasterizer(
   opts: SampleOptions,
   rasterize: RasterizeFn,
 ): Vec2[] {
-  if (!text) return []
+  if (!splitLines(text).length) return []
   const { alpha, width, height } = rasterize(text, opts)
   return pointsFromAlpha(alpha, width, height, opts.cell, opts.threshold)
 }
 
-/** Real DOM rasterizer. Draws centred text scaled to fillRatio*height. */
+/** Split a phrase into stacked lines on the `|` separator (trimmed, blanks
+ *  dropped). A phrase with no `|` is a single line — unchanged behaviour. */
+export function splitLines(text: string): string[] {
+  return text.split('|').map((s) => s.trim()).filter(Boolean)
+}
+
+/** Vertical spacing between baselines as a multiple of the font size. */
+const LINE_GAP = 1.18
+
+/** Real DOM rasterizer. Draws centred text (one or more `|`-separated lines)
+ *  scaled so the whole block fits within stage width and fillRatio*height. */
 export const rasterizeCanvas: RasterizeFn = (text, opts) => {
   const canvas = document.createElement('canvas')
   canvas.width = opts.width
   canvas.height = opts.height
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
   ctx.clearRect(0, 0, opts.width, opts.height)
-  // Start at fillRatio*height and iteratively scale the font down until the
-  // text fits the stage width (each pass rescales by the overflow ratio).
+  const lines = splitLines(text)
   const maxH = opts.height * opts.fillRatio
-  let fontPx = maxH
+  const maxW = opts.width * 0.92
+  // Vertical budget: a block of n lines spans font*(1 + (n-1)*gap). For n=1 this
+  // reduces to `font`, so single-line sizing is identical to before.
+  const vDenom = 1 + (lines.length - 1) * LINE_GAP
+  let fontPx = maxH / vDenom
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
+  // Then shrink until the widest line also fits the width (each pass rescales
+  // by the overflow ratio).
   for (let i = 0; i < 8; i++) {
     ctx.font = `${opts.fontWeight} ${fontPx}px ${opts.fontFamily}`
-    const w = ctx.measureText(text).width
-    const maxW = opts.width * 0.92
+    let w = 0
+    for (const ln of lines) w = Math.max(w, ctx.measureText(ln).width)
     if (w > maxW) fontPx *= maxW / w
     else break
   }
   ctx.font = `${opts.fontWeight} ${fontPx}px ${opts.fontFamily}`
   ctx.fillStyle = '#fff'
-  ctx.fillText(text, opts.width / 2, opts.height / 2)
+  const lineH = fontPx * LINE_GAP
+  const firstCenter = opts.height / 2 - ((lines.length - 1) * lineH) / 2
+  lines.forEach((ln, i) => ctx.fillText(ln, opts.width / 2, firstCenter + i * lineH))
   const img = ctx.getImageData(0, 0, opts.width, opts.height).data
   const alpha = new Uint8ClampedArray(opts.width * opts.height)
   for (let i = 0; i < alpha.length; i++) alpha[i] = img[i * 4 + 3]

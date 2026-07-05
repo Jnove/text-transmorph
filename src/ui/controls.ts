@@ -118,7 +118,7 @@ export function mountControls(
   container.innerHTML =
     col(
       group('文字内容',
-        row('文案（每行一段）', `<textarea id="f-phrases" rows="3">${c.phrases.join('\n')}</textarea>`),
+        row('文案（每行一段，段内用 | 换行）', `<textarea id="f-phrases" rows="3">${c.phrases.join('\n')}</textarea>`),
         row('播放模式', modeSel),
         row('字体', fontSel),
         row('字重', weightSel)),
