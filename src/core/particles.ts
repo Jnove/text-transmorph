@@ -20,18 +20,22 @@ export type ParticleSystemOptions = {
   movement?: MovementMode
   center?: Vec2
   floorY?: number
+  /** 0–0.6: per-particle start-delay spread. Particles that start later rush to
+   *  catch up so every dot still lands exactly on the target at progress 1 —
+   *  the transition reads as a wave instead of a rigid block. Default 0. */
+  stagger?: number
 }
 
 /** Two-phase modes disperse to a waypoint at progress=0.5, then form the
  *  target. Single-phase modes (cross/morph) travel straight src→dst so the
- *  motion stays purely on its axis with no parasitic detour. */
+ *  motion stays purely on its axis with no parasitic detour. Swirl is neither:
+ *  it interpolates in polar space (see the swirl branch in positionsAt). */
 function isTwoPhase(mode: MovementMode): boolean {
   return (
     mode === 'random' ||
     mode === 'explode' ||
     mode === 'implode' ||
-    mode === 'gravity' ||
-    mode === 'swirl'
+    mode === 'gravity'
   )
 }
 
@@ -200,11 +204,6 @@ export function pairPoints(
   return rankPair(sortedByX(from), sortedByX(to))
 }
 
-function normalize(v: Vec2): Vec2 {
-  const l = Math.hypot(v.x, v.y)
-  return l > 1e-6 ? { x: v.x / l, y: v.y / l } : { x: 0, y: 0 }
-}
-
 /** Scale that maps `scatterAmount` to a radial expand/collapse factor.
  *  amount 0 → 1 (no change); amount 220 → explode ×2 / implode ×0. */
 const RADIAL_REF = 220
@@ -227,7 +226,6 @@ export function waypointFor(
 ): Vec2 {
   const mid: Vec2 = { x: (src.x + dst.x) / 2, y: (src.y + dst.y) / 2 }
   const toMid: Vec2 = { x: mid.x - center.x, y: mid.y - center.y }
-  const dist = Math.hypot(toMid.x, toMid.y)
   const jx = randomDir.x * amount * jitterFrac
   const jy = randomDir.y * amount * jitterFrac
   switch (mode) {
@@ -248,10 +246,6 @@ export function waypointFor(
       // shallow rubble band just above the floor. Horizontal travel to the new
       // layout happens only on the bounce-up phase.
       return { x: src.x, y: floorY - Math.abs(jy) * 0.15 }
-    case 'swirl': {
-      const d = dist > 1e-6 ? normalize({ x: -toMid.y, y: toMid.x }) : randomDir
-      return { x: mid.x + d.x * amount + jx, y: mid.y + d.y * amount + jy }
-    }
     case 'random':
     default:
       // Random scatter: full radial magnitude minus the jitter share.
@@ -285,6 +279,26 @@ function easeOutBack(t: number): number {
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
 }
 
+/** Peak shrink applied to a dot at mid-flight, restored to full size at both
+ *  endpoints — dots look like they recede into depth and land back in front. */
+const FLIGHT_SHRINK = 0.4
+
+/** A stable pseudo-random phase in [0, 2π) for a stage position — lets the idle
+ *  shimmer differ per dot without storing per-dot state. */
+function phaseFor(x: number, y: number): number {
+  const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453
+  return (h - Math.floor(h)) * Math.PI * 2
+}
+
+/** Tiny per-dot drift for the resting text during the hold phase, so a static
+ *  frame still breathes. `amp` is the peak offset in stage px (0 → no motion). */
+export function idleOffset(x: number, y: number, timeMs: number, amp: number): Vec2 {
+  if (amp <= 0) return { x: 0, y: 0 }
+  const ph = phaseFor(x, y)
+  const w = timeMs * 0.0022
+  return { x: Math.sin(w + ph) * amp, y: Math.cos(w * 0.85 + ph) * amp }
+}
+
 export class ParticleSystem {
   private readonly src: Vec2[]
   private readonly dst: Vec2[]
@@ -295,6 +309,14 @@ export class ParticleSystem {
   /** Per-particle landing progress for gravity (else null): the progress at
    *  which this dot reaches the floor. Tall dots land later → pancake pile-up. */
   private readonly gLand: number[] | null
+  /** Per-particle start-delay in [0, maxStagger]; remapped so every dot still
+   *  reaches its target at progress 1 (see localProgress). */
+  private readonly stagger: number[]
+  private readonly center: Vec2
+  private readonly swirl: boolean
+  /** Peak angular sweep (rad) and radial bulge (px) for the swirl vortex. */
+  private readonly swirlSpin: number
+  private readonly swirlBulge: number
 
   constructor(from: Vec2[], to: Vec2[], opts: ParticleSystemOptions) {
     const movement = opts.movement ?? 'random'
@@ -302,6 +324,10 @@ export class ParticleSystem {
     const floorY = opts.floorY ?? center.y * 2 * 0.92
     const rand = mulberry32(opts.seed)
     this.ease = opts.ease
+    this.center = center
+    this.swirl = movement === 'swirl'
+    this.swirlSpin = (opts.scatterAmount / RADIAL_REF) * Math.PI
+    this.swirlBulge = opts.scatterAmount * 0.12
     const paired = pairPoints(from, to, movement)
     this.src = paired.src
     this.dst = paired.dst
@@ -357,23 +383,65 @@ export class ParticleSystem {
       this.perp = perp
       this.gLand = null
     } else {
-      // morph: straight src→dst, no waypoint, no wobble.
+      // morph / swirl: no waypoint or perpendicular wobble stored here (swirl
+      // interpolates in polar space directly in positionsAt).
       this.way = null
       this.perp = null
       this.gLand = null
     }
+
+    // Built last so the RNG draws above (waypoints / wobble) are unaffected by
+    // whether stagger is on — keeps existing seeded output deterministic.
+    const staggerAmt = Math.min(0.6, Math.max(0, opts.stagger ?? 0))
+    const stagger: number[] = []
+    for (let i = 0; i < this.src.length; i++) stagger.push(staggerAmt * rand())
+    this.stagger = stagger
+  }
+
+  /** Map global progress to this particle's local progress. A staggered dot
+   *  starts at `stagger[i]` and then runs faster so it still hits 1 exactly at
+   *  progress 1 — endpoints stay perfectly aligned across all dots. */
+  private localProgress(i: number, progress: number): number {
+    const s = this.stagger[i]
+    if (s <= 0) return progress
+    if (progress <= s) return 0
+    return (progress - s) / (1 - s)
   }
 
   positionsAt(progress: number): Vec2[] {
     const out: Vec2[] = []
+
+    if (this.swirl) {
+      // Polar interpolation around the centre: the angle sweeps from src to dst
+      // (shortest way) plus an extra spin that returns to zero at both ends, and
+      // the radius bulges outward mid-transition — a true vortex arc.
+      const c = this.center
+      for (let i = 0; i < this.src.length; i++) {
+        const e = this.ease(this.localProgress(i, progress))
+        const sx = this.src[i].x - c.x, sy = this.src[i].y - c.y
+        const dx = this.dst[i].x - c.x, dy = this.dst[i].y - c.y
+        const r0 = Math.hypot(sx, sy), a0 = Math.atan2(sy, sx)
+        const r1 = Math.hypot(dx, dy), a1 = Math.atan2(dy, dx)
+        let da = a1 - a0
+        while (da > Math.PI) da -= Math.PI * 2
+        while (da < -Math.PI) da += Math.PI * 2
+        const bump = Math.sin(Math.PI * e)
+        const ang = a0 + da * e + this.swirlSpin * bump
+        const rad = lerp(r0, r1, e) + this.swirlBulge * bump
+        out.push({ x: c.x + Math.cos(ang) * rad, y: c.y + Math.sin(ang) * rad })
+      }
+      return out
+    }
+
     const way = this.way
     if (way === null) {
       // Single-phase: a straight, eased lerp from src to dst, plus (for cross
       // modes) a perpendicular wobble that vanishes at both endpoints.
-      const e = this.ease(progress)
-      const env = this.perp ? Math.sin(Math.PI * progress) : 0
       for (let i = 0; i < this.src.length; i++) {
+        const pr = this.localProgress(i, progress)
+        const e = this.ease(pr)
         const wob = this.perp ? this.perp[i] : null
+        const env = wob ? Math.sin(Math.PI * pr) : 0
         out.push({
           x: lerp(this.src[i].x, this.dst[i].x, e) + (wob ? wob.x * env : 0),
           y: lerp(this.src[i].y, this.dst[i].y, e) + (wob ? wob.y * env : 0),
@@ -385,19 +453,20 @@ export class ParticleSystem {
     if (gLand !== null) {
       // Gravity: per-dot pancake collapse → settle → spring-up reform.
       for (let i = 0; i < this.src.length; i++) {
+        const pr = this.localProgress(i, progress)
         const rest = way[i]
-        if (progress < GRAVITY_RISE_START) {
+        if (pr < GRAVITY_RISE_START) {
           // Collapse then settle: accelerating fall to the floor by this dot's
           // landing time, then it simply stays at rest (the "wait" before rise).
           const pl = gLand[i]
-          const f = easeInQuad(pl > 1e-6 ? Math.min(1, progress / pl) : 1)
+          const f = easeInQuad(pl > 1e-6 ? Math.min(1, pr / pl) : 1)
           out.push({
             x: lerp(this.src[i].x, rest.x, f), // rest.x === src.x → straight down
             y: lerp(this.src[i].y, rest.y, f),
           })
         } else {
           // Reform: spring up out of the rubble into the next layout.
-          const e = easeOutBack((progress - GRAVITY_RISE_START) / (1 - GRAVITY_RISE_START))
+          const e = easeOutBack((pr - GRAVITY_RISE_START) / (1 - GRAVITY_RISE_START))
           out.push({
             x: lerp(rest.x, this.dst[i].x, e),
             y: lerp(rest.y, this.dst[i].y, e),
@@ -407,19 +476,32 @@ export class ParticleSystem {
       return out
     }
     for (let i = 0; i < this.src.length; i++) {
-      if (progress <= 0.5) {
-        const e = this.ease(progress / 0.5)
+      const pr = this.localProgress(i, progress)
+      if (pr <= 0.5) {
+        const e = this.ease(pr / 0.5)
         out.push({
           x: lerp(this.src[i].x, way[i].x, e),
           y: lerp(this.src[i].y, way[i].y, e),
         })
       } else {
-        const e = this.ease((progress - 0.5) / 0.5)
+        const e = this.ease((pr - 0.5) / 0.5)
         out.push({
           x: lerp(way[i].x, this.dst[i].x, e),
           y: lerp(way[i].y, this.dst[i].y, e),
         })
       }
+    }
+    return out
+  }
+
+  /** Per-particle render scale for the current progress: dips to
+   *  1−FLIGHT_SHRINK at mid-flight, full size at rest. Aligned with each dot's
+   *  staggered local progress so scale and position move together. */
+  scalesAt(progress: number): number[] {
+    const out: number[] = []
+    for (let i = 0; i < this.src.length; i++) {
+      const pr = this.localProgress(i, progress)
+      out.push(1 - FLIGHT_SHRINK * Math.sin(Math.PI * pr))
     }
     return out
   }

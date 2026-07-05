@@ -21,6 +21,8 @@ export interface Config {
   easing: EasingName
   scatterAmount: number  // stage px — dispersal distance to the waypoint
   randomness: number     // 0-1
+  stagger: number        // 0-0.6 — per-particle start-time spread (wave feel)
+  idleFloat: number      // stage px — resting-text shimmer amplitude during hold
   movement: MovementMode
   seed: number
   fileName: string
@@ -42,6 +44,8 @@ export const defaultConfig: Config = {
   easing: 'easeInOutCubic',
   scatterAmount: 280,
   randomness: 0.6,
+  stagger: 0.12,
+  idleFloat: 1.5,
   movement: 'random',
   seed: 1,
   fileName: 'transmorph',

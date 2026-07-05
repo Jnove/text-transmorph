@@ -10,7 +10,7 @@ const RESAMPLE = new Set<keyof Config>([
 /** Keys that only change motion — cached particle systems must rebuild,
  *  but the sampled dots stay valid. */
 const RESET = new Set<keyof Config>([
-  'scatterAmount', 'randomness', 'easing', 'movement',
+  'scatterAmount', 'randomness', 'stagger', 'easing', 'movement',
 ])
 
 const MOVEMENT_LABELS: Record<MovementMode, string> = {
@@ -136,10 +136,12 @@ export function mountControls(
         row('移动方式', moveSel),
         row('缓动曲线', easeSel),
         sliderRow('f-scatter', '散开强度', '', c.scatterAmount, 'min="0" max="800"'),
-        sliderRow('f-rand', '随机度', '', c.randomness, 'min="0" max="1" step="0.05"')),
+        sliderRow('f-rand', '随机度', '', c.randomness, 'min="0" max="1" step="0.05"'),
+        sliderRow('f-stagger', '错峰波浪', '', c.stagger, 'min="0" max="0.6" step="0.02"')),
       group('节奏',
         sliderRow('f-trans', '过渡时长', 'ms', c.transitionMs, 'min="300" max="3000" step="50"'),
-        sliderRow('f-hold', '停留时长', 'ms', c.holdMs, 'min="200" max="4000" step="50"')))
+        sliderRow('f-hold', '停留时长', 'ms', c.holdMs, 'min="200" max="4000" step="50"'),
+        sliderRow('f-idle', '静止浮动', '', c.idleFloat, 'min="0" max="6" step="0.5"')))
 
   const apply = (key: keyof Config, value: Config[keyof Config]) => {
     store.set({ [key]: value } as Partial<Config>)
@@ -178,6 +180,8 @@ export function mountControls(
   onSlider('f-hold', 'holdMs', 'ms')
   onSlider('f-scatter', 'scatterAmount', '')
   onSlider('f-rand', 'randomness', '')
+  onSlider('f-stagger', 'stagger', '')
+  onSlider('f-idle', 'idleFloat', '')
   on('#f-move', 'change', (el) => apply('movement', el.value as MovementMode))
   on('#f-ease', 'change', (el) => apply('easing', el.value as EasingName))
   on('#f-font', 'change', (el) => apply('fontFamily', el.value))

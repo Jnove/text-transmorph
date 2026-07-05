@@ -2,7 +2,7 @@ import type { Vec2 } from './types'
 import type { Store } from '../config/store'
 import { STAGE_WIDTH, STAGE_HEIGHT } from '../config/types'
 import { sampleText, ALPHA_THRESHOLD, type SampleOptions } from './sampler'
-import { ParticleSystem } from './particles'
+import { ParticleSystem, idleOffset } from './particles'
 import { sequenceState, cycleDuration } from './sequencer'
 import { easings } from './easing'
 import { drawStage, type DrawStyle } from '../render/renderer'
@@ -61,6 +61,7 @@ export class Engine {
         seed: c.seed + fromIndex * 131 + toIndex * 17,
         scatterAmount: c.scatterAmount,
         randomness: c.randomness,
+        stagger: c.stagger,
         ease: easings[c.easing],
         movement: c.movement,
         center: { x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 },
@@ -75,13 +76,25 @@ export class Engine {
     const count = this.targets.length
     const state = sequenceState(timeMs, count, c.holdMs, c.transitionMs, c.mode)
     const sys = this.systemFor(state.fromIndex, state.toIndex)
-    const points = sys.positionsAt(state.phase === 'hold' ? 0 : state.progress)
+    const hold = state.phase === 'hold'
+    const progress = hold ? 0 : state.progress
+    const points = sys.positionsAt(progress)
+    const scales = sys.scalesAt(progress)
+    // Resting text shimmers gently during the hold so a static frame still
+    // breathes; the transition frames already move, so leave them untouched.
+    if (hold && c.idleFloat > 0) {
+      for (const p of points) {
+        const o = idleOffset(p.x, p.y, timeMs, c.idleFloat)
+        p.x += o.x
+        p.y += o.y
+      }
+    }
     const style: DrawStyle = {
       backgroundColor: c.backgroundColor,
       dotColor: c.dotColor,
       dotShape: c.dotShape,
       dotSize: c.dotSize,
     }
-    drawStage(this.ctx, STAGE_WIDTH, STAGE_HEIGHT, points, style)
+    drawStage(this.ctx, STAGE_WIDTH, STAGE_HEIGHT, points, style, scales)
   }
 }

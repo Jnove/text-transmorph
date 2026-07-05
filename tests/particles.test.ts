@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { ParticleSystem, pairPoints, waypointFor, type MovementMode } from '../src/core/particles'
+import {
+  ParticleSystem, pairPoints, waypointFor, idleOffset, type MovementMode,
+} from '../src/core/particles'
 import type { Vec2 } from '../src/core/types'
 
 const from: Vec2[] = [{ x: 0, y: 0 }, { x: 10, y: 0 }]
@@ -130,12 +132,6 @@ describe('waypointFor (two-phase modes only)', () => {
     expect(w.x).toBeCloseTo(4, 6) // src.x, not mid.x — no sideways drift on the fall
     expect(w.y).toBeCloseTo(478, 6)
   })
-  it('swirl waypoint is tangential to the radius (jitterFrac 0)', () => {
-    // mid={5,0}, toMid={5,0}, tangent dir={0,1}; W={5, 0+100}={5,100}
-    const w = waypointFor('swirl', { x: 0, y: 0 }, { x: 10, y: 0 }, center, 100, 50, rd, 0)
-    expect(w.x).toBeCloseTo(5, 6)
-    expect(w.y).toBeCloseTo(100, 6)
-  })
   it('jitterFrac adds a random offset of amount×frac along randomDir', () => {
     // degenerate mid==center: base is centre, so W = randomDir*amount*frac.
     const w = waypointFor('explode', { x: 0, y: 0 }, { x: 0, y: 0 }, center, 100, 50, rd, 1)
@@ -231,6 +227,96 @@ describe('cross-mode perpendicular wobble', () => {
     // at least one particle is displaced horizontally at the midpoint
     const mid = ps.positionsAt(0.5)
     expect(mid.some((p) => Math.abs(p.x - 5) > 1)).toBe(true)
+  })
+})
+
+describe('ParticleSystem swirl (polar arc)', () => {
+  const o = {
+    seed: 1, scatterAmount: 200, randomness: 0, ease: (t: number) => t,
+    movement: 'swirl' as MovementMode, center: { x: 0, y: 0 },
+  }
+  const s: Vec2[] = [{ x: 10, y: 0 }]
+  const d: Vec2[] = [{ x: 0, y: 10 }]
+  it('lands exactly on src at t=0 and dst at t=1', () => {
+    const ps = new ParticleSystem(s, d, o)
+    const p0 = ps.positionsAt(0)[0]
+    const p1 = ps.positionsAt(1)[0]
+    expect(p0.x).toBeCloseTo(10, 4)
+    expect(p0.y).toBeCloseTo(0, 4)
+    expect(p1.x).toBeCloseTo(0, 4)
+    expect(p1.y).toBeCloseTo(10, 4)
+  })
+  it('bows off the straight src→dst chord at the midpoint (curved path)', () => {
+    const ps = new ParticleSystem(s, d, o)
+    const mid = ps.positionsAt(0.5)[0]
+    // straight-line midpoint would be (5,5); the polar arc must deviate.
+    expect(Math.hypot(mid.x - 5, mid.y - 5)).toBeGreaterThan(2)
+  })
+  it('keeps a roughly constant radius when src and dst share a radius', () => {
+    // both points 10px from centre → the arc should ride near r=10, not detour
+    // through the origin the way a straight lerp would.
+    const ps = new ParticleSystem(s, d, { ...o, scatterAmount: 0 })
+    const mid = ps.positionsAt(0.5)[0]
+    expect(Math.hypot(mid.x, mid.y)).toBeCloseTo(10, 0)
+  })
+})
+
+describe('ParticleSystem stagger', () => {
+  const from: Vec2[] = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }]
+  const to: Vec2[] = [{ x: 0, y: 40 }, { x: 10, y: 40 }, { x: 20, y: 40 }]
+  const base = {
+    seed: 3, scatterAmount: 0, randomness: 0, ease: (t: number) => t,
+    movement: 'morph' as MovementMode, center: { x: 10, y: 20 },
+  }
+  it('keeps endpoints exact for every particle despite the spread', () => {
+    const ps = new ParticleSystem(from, to, { ...base, stagger: 0.5 })
+    expect(ps.positionsAt(0)).toEqual(from)
+    expect(ps.positionsAt(1)).toEqual(to)
+  })
+  it('spreads mid-transition progress across particles', () => {
+    const ps = new ParticleSystem(from, to, { ...base, stagger: 0.5 })
+    const ys = ps.positionsAt(0.5).map((p) => p.y)
+    // With a spread, the three dots are not all at the same y at t=0.5.
+    expect(new Set(ys.map((y) => Math.round(y))).size).toBeGreaterThan(1)
+  })
+  it('stagger 0 is identical to no stagger (default off)', () => {
+    const a = new ParticleSystem(from, to, base).positionsAt(0.5)
+    const b = new ParticleSystem(from, to, { ...base, stagger: 0 }).positionsAt(0.5)
+    expect(a).toEqual(b)
+  })
+})
+
+describe('ParticleSystem scalesAt', () => {
+  const s: Vec2[] = [{ x: 0, y: 0 }]
+  const d: Vec2[] = [{ x: 0, y: 10 }]
+  const o = {
+    seed: 1, scatterAmount: 0, randomness: 0, ease: (t: number) => t,
+    movement: 'morph' as MovementMode, center: { x: 0, y: 5 },
+  }
+  it('is full size at both endpoints and smaller mid-flight', () => {
+    const ps = new ParticleSystem(s, d, o)
+    expect(ps.scalesAt(0)[0]).toBeCloseTo(1, 6)
+    expect(ps.scalesAt(1)[0]).toBeCloseTo(1, 6)
+    expect(ps.scalesAt(0.5)[0]).toBeLessThan(1)
+    expect(ps.scalesAt(0.5)[0]).toBeGreaterThan(0)
+  })
+})
+
+describe('idleOffset', () => {
+  it('is zero when amplitude is zero', () => {
+    expect(idleOffset(100, 50, 1234, 0)).toEqual({ x: 0, y: 0 })
+  })
+  it('stays within the amplitude bound and is deterministic', () => {
+    const a = idleOffset(100, 50, 1234, 2)
+    const b = idleOffset(100, 50, 1234, 2)
+    expect(a).toEqual(b)
+    expect(Math.abs(a.x)).toBeLessThanOrEqual(2)
+    expect(Math.abs(a.y)).toBeLessThanOrEqual(2)
+  })
+  it('differs between two distinct positions at the same time', () => {
+    const a = idleOffset(100, 50, 1234, 2)
+    const b = idleOffset(101, 50, 1234, 2)
+    expect(a).not.toEqual(b)
   })
 })
 

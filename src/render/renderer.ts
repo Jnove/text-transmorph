@@ -13,16 +13,19 @@ export function drawStage(
   height: number,
   points: Vec2[],
   style: DrawStyle,
+  scales?: number[],
 ): void {
   ctx.fillStyle = style.backgroundColor
   ctx.fillRect(0, 0, width, height)
   ctx.fillStyle = style.dotColor
   const s = style.dotSize
-  const half = s / 2
-  if (style.dotShape === 'square') {
-    for (const p of points) ctx.fillRect(p.x - half, p.y - half, s, s)
-  } else {
-    for (const p of points) {
+  const square = style.dotShape === 'square'
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i]
+    const half = (scales ? s * scales[i] : s) / 2
+    if (square) {
+      ctx.fillRect(p.x - half, p.y - half, half * 2, half * 2)
+    } else {
       ctx.beginPath()
       ctx.arc(p.x, p.y, half, 0, Math.PI * 2)
       ctx.fill()
