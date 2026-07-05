@@ -268,17 +268,30 @@ function enhanceSelect(wrap: HTMLElement): void {
     sync()
   }
   let open = false
+  // Highlighted (not yet committed) option while the list is open — decouples
+  // navigation from selection so arrow keys preview a choice and Enter confirms
+  // it, matching native <select> keyboard behaviour.
+  let active = -1
+  const setActive = (idx: number) => {
+    active = Math.max(0, Math.min(items.length - 1, idx))
+    items.forEach((it, i) => it.classList.toggle('cs-active', i === active))
+    items[active]?.scrollIntoView({ block: 'nearest' })
+  }
+  items.forEach((it, i) => it.addEventListener('mousemove', () => setActive(i)))
+
   const openList = () => {
     closeOpenDropdown?.() // at most one dropdown open at a time
     open = true
     closeOpenDropdown = () => close(false)
     wrap.classList.add('cs-open')
     trigger.setAttribute('aria-expanded', 'true')
-    list.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' })
+    setActive(select.selectedIndex)
   }
   const close = (focus: boolean) => {
     open = false
     closeOpenDropdown = null
+    active = -1
+    items.forEach((it) => it.classList.remove('cs-active'))
     wrap.classList.remove('cs-open')
     trigger.setAttribute('aria-expanded', 'false')
     if (focus) trigger.focus()
@@ -290,19 +303,28 @@ function enhanceSelect(wrap: HTMLElement): void {
     else openList()
   })
   trigger.addEventListener('keydown', (e) => {
-    const i = select.selectedIndex
     if (e.key === 'ArrowDown') {
-      e.preventDefault(); commit(select.options[Math.min(i + 1, select.options.length - 1)].value)
-      if (!open) openList()
+      e.preventDefault()
+      if (open) setActive(active + 1)
+      else openList()
     } else if (e.key === 'ArrowUp') {
-      e.preventDefault(); commit(select.options[Math.max(i - 1, 0)].value)
-      if (!open) openList()
+      e.preventDefault()
+      if (open) setActive(active - 1)
+      else openList()
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      if (open) close(false)
-      else openList()
+      if (open) {
+        commit(select.options[active].value)
+        close(true)
+      } else {
+        openList()
+      }
     } else if (e.key === 'Escape') {
-      close(false)
+      if (open) close(true)
+    } else if (e.key === 'Home' && open) {
+      e.preventDefault(); setActive(0)
+    } else if (e.key === 'End' && open) {
+      e.preventDefault(); setActive(items.length - 1)
     }
   })
   list.addEventListener('click', (e) => e.stopPropagation())

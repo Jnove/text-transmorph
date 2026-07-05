@@ -368,10 +368,12 @@ body::before {
   font-family: var(--sans); font-size: 14px; color: var(--txt2);
   transition: background .15s, color .15s;
 }
-.cs-option:hover { background: var(--field-fill); color: var(--txt); }
+.cs-option:hover,
+.cs-option.cs-active { background: var(--field-fill); color: var(--txt); }
 .cs-option[aria-selected=true] {
   background: var(--action-soft); color: var(--action-tx); font-weight: 600;
 }
+.cs-option.cs-active { box-shadow: inset 2px 0 0 var(--action); }
 
 /* —— 颜色：背景色 / 点色 并排一行，标签在上、色条满宽 —— */
 .row-colors { display: flex; gap: 14px; }

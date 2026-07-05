@@ -59,10 +59,12 @@ app.innerHTML = `
     </aside>
   </div>`
 
-// 深浅色主题切换：默认跟随保存值，否则浅色（暖纸），呼应 jnove 的双主题
+// 深浅色主题切换：优先保存值，否则跟随系统 prefers-color-scheme
 const rootEl = document.documentElement
 const savedTheme = localStorage.getItem('tm-theme')
-if (savedTheme) rootEl.setAttribute('data-theme', savedTheme)
+const initialTheme = savedTheme
+  ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+rootEl.setAttribute('data-theme', initialTheme)
 const themeBtn = document.querySelector<HTMLButtonElement>('#theme-toggle')!
 const themeIcon = themeBtn.querySelector<HTMLElement>('.tt-icon')!
 const syncThemeIcon = () => {
@@ -110,12 +112,15 @@ function syncDisplaySize() {
 syncDisplaySize()
 const dctx = display.getContext('2d')!
 
+// Respect the OS "reduce motion" setting: freeze the preview on the first
+// phrase at rest instead of auto-cycling. Export still runs on demand.
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)')
 let start = performance.now()
 let exporting = false
 function frame(now: number) {
   // While exporting, the exporter drives engine.renderAt on the stage; keep
   // blitting so the preview mirrors the frames being captured.
-  if (!exporting) engine.renderAt(now - start)
+  if (!exporting) engine.renderAt(reduceMotion.matches ? 0 : now - start)
   blitFit(dctx, stage, display.width, display.height, store.get().backgroundColor)
   requestAnimationFrame(frame)
 }
