@@ -1,6 +1,7 @@
 import './style.css'
 import { STAGE_WIDTH, STAGE_HEIGHT, defaultConfig } from './config/types'
 import { createStore } from './config/store'
+import { encodeConfig, pickInitial } from './config/persist'
 import { Engine } from './core/engine'
 import { blitFit } from './render/renderer'
 import { mountControls } from './ui/controls'
@@ -9,6 +10,14 @@ import { downloadBlob } from './exporters/capture'
 import { exportWebm, webmSupported } from './exporters/webm'
 import { exportMp4, mp4Supported } from './exporters/mp4'
 import { sanitizeFileName } from './exporters/filename'
+
+const STORAGE_KEY = 'tm-config'
+// Startup priority: a share-link #hash > the last saved local config > defaults.
+const initialConfig = pickInitial(
+  defaultConfig,
+  location.hash ? location.hash.slice(1) : null,
+  localStorage.getItem(STORAGE_KEY),
+)
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
@@ -33,13 +42,14 @@ app.innerHTML = `
         <div class="tray-head"><span class="tray-label">导出 · Export</span></div>
         <div class="export-name">
           <label for="f-name">文件名</label>
-          <input id="f-name" type="text" value="${defaultConfig.fileName}">
+          <input id="f-name" type="text" value="${initialConfig.fileName}">
         </div>
         <div class="export-btns">
           <button id="exp-gif" class="btn-export">GIF</button>
           <button id="exp-webm" class="btn-export">WebM</button>
           <button id="exp-mp4" class="btn-export">MP4</button>
         </div>
+        <button id="exp-share" class="btn-share" type="button">复制分享链接</button>
         <div id="status" class="status"></div>
       </div>
     </section>
@@ -67,8 +77,22 @@ themeBtn.addEventListener('click', () => {
 })
 
 const stage = document.createElement('canvas')
-const store = createStore(defaultConfig)
+const store = createStore(initialConfig)
 const engine = new Engine(stage, store)
+
+// Persist to localStorage on every change (coalesced to one write per frame) so
+// a reload restores the exact scene.
+let saveQueued = false
+store.subscribe(() => {
+  if (saveQueued) return
+  saveQueued = true
+  requestAnimationFrame(() => {
+    saveQueued = false
+    try {
+      localStorage.setItem(STORAGE_KEY, encodeConfig(store.get()))
+    } catch { /* storage full or blocked — non-fatal */ }
+  })
+})
 
 const display = document.querySelector<HTMLCanvasElement>('#display')!
 display.width = STAGE_WIDTH
@@ -150,3 +174,18 @@ bindExport('#exp-mp4', '.mp4', 'MP4', (progress) => {
   progress('正在录制 MP4…（请保持页面在前台）')
   return exportMp4(engine, stage, 30, engine.durationMs())
 }, mp4Supported(), '当前浏览器不支持 MP4 录制，请用 WebM')
+
+// Build a shareable URL that reproduces the current scene from its #hash.
+const shareBtn = document.querySelector<HTMLButtonElement>('#exp-share')!
+shareBtn.addEventListener('click', async () => {
+  const url = location.origin + location.pathname + '#' + encodeConfig(store.get())
+  try {
+    await navigator.clipboard.writeText(url)
+    status.textContent = '分享链接已复制到剪贴板'
+  } catch {
+    // Clipboard blocked (e.g. insecure context): drop the hash into the address
+    // bar so the user can copy it manually.
+    location.hash = encodeConfig(store.get())
+    status.textContent = '链接已写入地址栏，可手动复制'
+  }
+})
