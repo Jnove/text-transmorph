@@ -78,10 +78,10 @@ const dctx = display.getContext('2d')!
 let start = performance.now()
 let exporting = false
 function frame(now: number) {
-  if (!exporting) {
-    engine.renderAt(now - start)
-    blitFit(dctx, stage, display.width, display.height, store.get().backgroundColor)
-  }
+  // While exporting, the exporter drives engine.renderAt on the stage; keep
+  // blitting so the preview mirrors the frames being captured.
+  if (!exporting) engine.renderAt(now - start)
+  blitFit(dctx, stage, display.width, display.height, store.get().backgroundColor)
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
@@ -89,15 +89,12 @@ requestAnimationFrame(frame)
 mountControls(
   document.querySelector<HTMLElement>('#controls')!,
   store,
-  () => engine.rebuild(),
+  { resample: () => engine.resample(), resetSystems: () => engine.resetSystems() },
 )
 
 // 文件名移到左侧导出区，直接写回 store（非结构性，无需重建）
 const nameInput = document.querySelector<HTMLInputElement>('#f-name')!
 nameInput.addEventListener('input', () => store.set({ fileName: nameInput.value }))
-
-// Expose for later tasks (UI + exporters wire into these).
-;(window as any).__transmorph = { store, engine, stage }
 
 const status = document.querySelector<HTMLElement>('#status')!
 const setBusy = (busy: boolean, msg = '') => {
@@ -106,52 +103,50 @@ const setBusy = (busy: boolean, msg = '') => {
   status.textContent = msg
 }
 
-document.querySelector('#exp-gif')!.addEventListener('click', async () => {
-  setBusy(true, '正在生成 GIF…')
-  await new Promise((r) => requestAnimationFrame(() => r(null)))
-  try {
-    const blob = exportGif(engine, stage, 25, engine.durationMs())
-    downloadBlob(blob, sanitizeFileName(store.get().fileName) + '.gif')
-    setBusy(false, 'GIF 已下载')
-  } catch (e) {
-    setBusy(false, 'GIF 失败：' + (e as Error).message)
+/** Wire an export button: busy state, download, error surface, and restarting
+ *  the preview cycle from phase 0 when done (the export drove the stage, so
+ *  the old time base would make the preview jump mid-transition). */
+function bindExport(
+  btnId: string,
+  ext: string,
+  label: string,
+  run: (progress: (msg: string) => void) => Promise<Blob>,
+  supported = true,
+  unsupportedTip = '',
+) {
+  const btn = document.querySelector<HTMLButtonElement>(btnId)!
+  if (!supported) {
+    btn.disabled = true
+    btn.title = unsupportedTip
+    return
   }
-})
-
-const webmBtn = document.querySelector<HTMLButtonElement>('#exp-webm')!
-if (!webmSupported()) {
-  webmBtn.disabled = true
-  webmBtn.title = '当前浏览器不支持 WebM 录制'
+  btn.addEventListener('click', async () => {
+    setBusy(true, `正在生成 ${label}…`)
+    exporting = true
+    try {
+      const blob = await run((msg) => (status.textContent = msg))
+      downloadBlob(blob, sanitizeFileName(store.get().fileName) + ext)
+      setBusy(false, `${label} 已下载`)
+    } catch (e) {
+      setBusy(false, `${label} 失败：` + (e as Error).message)
+    } finally {
+      exporting = false
+      start = performance.now()
+    }
+  })
 }
-webmBtn.addEventListener('click', async () => {
-  setBusy(true, '正在录制 WebM…')
-  exporting = true
-  try {
-    const blob = await exportWebm(engine, stage, 30, engine.durationMs())
-    downloadBlob(blob, sanitizeFileName(store.get().fileName) + '.webm')
-    setBusy(false, 'WebM 已下载')
-  } catch (e) {
-    setBusy(false, 'WebM 失败：' + (e as Error).message)
-  } finally {
-    exporting = false
-  }
-})
 
-const mp4Btn = document.querySelector<HTMLButtonElement>('#exp-mp4')!
-if (!mp4Supported()) {
-  mp4Btn.disabled = true
-  mp4Btn.title = '当前浏览器不支持 MP4 录制，请用 WebM'
-}
-mp4Btn.addEventListener('click', async () => {
-  setBusy(true, '正在录制 MP4…')
-  exporting = true
-  try {
-    const blob = await exportMp4(engine, stage, 30, engine.durationMs())
-    downloadBlob(blob, sanitizeFileName(store.get().fileName) + '.mp4')
-    setBusy(false, 'MP4 已下载')
-  } catch (e) {
-    setBusy(false, 'MP4 失败：' + (e as Error).message)
-  } finally {
-    exporting = false
-  }
-})
+bindExport('#exp-gif', '.gif', 'GIF', (progress) =>
+  exportGif(engine, stage, 25, engine.durationMs(), (done, total) =>
+    progress(`正在生成 GIF… ${done}/${total} 帧`)))
+
+// MediaRecorder 走实时 rAF：标签页切到后台会被浏览器节流、录出坏帧，所以提示。
+bindExport('#exp-webm', '.webm', 'WebM', (progress) => {
+  progress('正在录制 WebM…（请保持页面在前台）')
+  return exportWebm(engine, stage, 30, engine.durationMs())
+}, webmSupported(), '当前浏览器不支持 WebM 录制')
+
+bindExport('#exp-mp4', '.mp4', 'MP4', (progress) => {
+  progress('正在录制 MP4…（请保持页面在前台）')
+  return exportMp4(engine, stage, 30, engine.durationMs())
+}, mp4Supported(), '当前浏览器不支持 MP4 录制，请用 WebM')

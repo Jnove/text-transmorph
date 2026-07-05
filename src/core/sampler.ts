@@ -33,7 +33,8 @@ export const rasterizeCanvas: RasterizeFn = (text, opts) => {
   canvas.height = opts.height
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
   ctx.clearRect(0, 0, opts.width, opts.height)
-  // Binary-search a font size so the text fits within width and fillRatio*height.
+  // Start at fillRatio*height and iteratively scale the font down until the
+  // text fits the stage width (each pass rescales by the overflow ratio).
   const maxH = opts.height * opts.fillRatio
   let fontPx = maxH
   ctx.textAlign = 'center'

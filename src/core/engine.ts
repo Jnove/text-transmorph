@@ -19,10 +19,13 @@ export class Engine {
     stage.width = STAGE_WIDTH
     stage.height = STAGE_HEIGHT
     this.ctx = stage.getContext('2d')!
-    this.rebuild()
+    this.resample()
   }
 
-  rebuild(): void {
+  /** Re-rasterize every phrase into dot targets. Expensive (canvas draw +
+   *  getImageData per phrase) — only for changes that alter the sampled dots
+   *  (text, grid, font). Motion-only changes should use resetSystems(). */
+  resample(): void {
     const c = this.store.get()
     const opts: SampleOptions = {
       width: STAGE_WIDTH,
@@ -35,6 +38,12 @@ export class Engine {
     }
     const phrases = c.phrases.length ? c.phrases : ['']
     this.targets = phrases.map((p) => sampleText(p, opts))
+    this.systems.clear()
+  }
+
+  /** Drop cached particle systems so they rebuild with current motion params.
+   *  Cheap — keeps the sampled dot targets. */
+  resetSystems(): void {
     this.systems.clear()
   }
 

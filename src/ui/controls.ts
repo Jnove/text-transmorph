@@ -3,8 +3,13 @@ import type { Config } from '../config/types'
 import { easings, type EasingName } from '../core/easing'
 import type { MovementMode } from '../core/particles'
 
-const STRUCTURAL = new Set<keyof Config>([
+/** Keys that change the sampled dot layout — require re-rasterizing text. */
+const RESAMPLE = new Set<keyof Config>([
   'phrases', 'gridSpacing', 'threshold', 'fontFamily', 'fontWeight', 'fillRatio',
+])
+/** Keys that only change motion — cached particle systems must rebuild,
+ *  but the sampled dots stay valid. */
+const RESET = new Set<keyof Config>([
   'scatterAmount', 'randomness', 'easing', 'movement',
 ])
 
@@ -57,10 +62,17 @@ const group = (label: string, ...rows: string[]) =>
 const option = <T extends string>(value: T, current: T, text: string) =>
   `<option value="${value}"${current === value ? ' selected' : ''}>${text}</option>`
 
+export type ControlActions = {
+  /** Re-rasterize text into dots (expensive). */
+  resample: () => void
+  /** Rebuild particle systems only (cheap). */
+  resetSystems: () => void
+}
+
 export function mountControls(
   container: HTMLElement,
   store: Store,
-  onStructuralChange: () => void,
+  actions: ControlActions,
 ): void {
   const c = store.get()
 
@@ -103,7 +115,8 @@ export function mountControls(
 
   const apply = (key: keyof Config, value: Config[keyof Config]) => {
     store.set({ [key]: value } as Partial<Config>)
-    if (STRUCTURAL.has(key)) onStructuralChange()
+    if (RESAMPLE.has(key)) actions.resample()
+    else if (RESET.has(key)) actions.resetSystems()
   }
   const on = (id: string, ev: string, fn: (el: HTMLInputElement) => void) => {
     const el = container.querySelector<HTMLInputElement>(id)
