@@ -10,7 +10,7 @@ const RESAMPLE = new Set<keyof Config>([
 /** Keys that only change motion — cached particle systems must rebuild,
  *  but the sampled dots stay valid. */
 const RESET = new Set<keyof Config>([
-  'scatterAmount', 'randomness', 'stagger', 'easing', 'movement',
+  'scatterAmount', 'randomness', 'stagger', 'easing', 'movement', 'seed',
 ])
 
 const MOVEMENT_LABELS: Record<MovementMode, string> = {
@@ -137,7 +137,8 @@ export function mountControls(
         row('缓动曲线', easeSel),
         sliderRow('f-scatter', '散开强度', '', c.scatterAmount, 'min="0" max="800"'),
         sliderRow('f-rand', '随机度', '', c.randomness, 'min="0" max="1" step="0.05"'),
-        sliderRow('f-stagger', '错峰波浪', '', c.stagger, 'min="0" max="0.6" step="0.02"')),
+        sliderRow('f-stagger', '错峰波浪', '', c.stagger, 'min="0" max="0.6" step="0.02"'),
+        row('随机形态', '<button id="f-reroll" class="btn-reroll" type="button">🎲 换一换</button>')),
       group('节奏',
         sliderRow('f-trans', '过渡时长', 'ms', c.transitionMs, 'min="300" max="3000" step="50"'),
         sliderRow('f-hold', '停留时长', 'ms', c.holdMs, 'min="200" max="4000" step="50"'),
@@ -186,6 +187,8 @@ export function mountControls(
   on('#f-ease', 'change', (el) => apply('easing', el.value as EasingName))
   on('#f-font', 'change', (el) => apply('fontFamily', el.value))
   on('#f-weight', 'change', (el) => apply('fontWeight', el.value))
+  // Re-roll the seed → same params, a freshly scattered form.
+  on('#f-reroll', 'click', () => apply('seed', Math.floor(Math.random() * 1e9)))
 
   // Paint each slider's initial fill.
   container.querySelectorAll<HTMLInputElement>('.row-slider input[type=range]').forEach(setFill)
