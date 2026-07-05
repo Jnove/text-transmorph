@@ -1,6 +1,10 @@
 import type { Vec2 } from './types'
 import { pointsFromAlpha } from './grid'
 
+/** Alpha cut-off for turning rasterized text into dots. Text is drawn opaque
+ *  white, so anything above half-coverage counts as "inside the glyph". */
+export const ALPHA_THRESHOLD = 128
+
 export type SampleOptions = {
   width: number
   height: number

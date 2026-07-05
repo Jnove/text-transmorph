@@ -5,7 +5,7 @@ import type { MovementMode } from '../core/particles'
 
 /** Keys that change the sampled dot layout — require re-rasterizing text. */
 const RESAMPLE = new Set<keyof Config>([
-  'phrases', 'gridSpacing', 'threshold', 'fontFamily', 'fontWeight', 'fillRatio',
+  'phrases', 'gridSpacing', 'fontFamily', 'fontWeight', 'fillRatio',
 ])
 /** Keys that only change motion — cached particle systems must rebuild,
  *  but the sampled dots stay valid. */
@@ -23,6 +23,23 @@ const MOVEMENT_LABELS: Record<MovementMode, string> = {
   swirl: '旋转漩涡',
   morph: '直接变形',
 }
+
+/** Built-in font choices. Each value is a full CSS font-family stack so every
+ *  option has fallbacks on both macOS and Windows. */
+const FONT_OPTIONS: { value: string; label: string }[] = [
+  { value: '"PingFang SC", "Microsoft YaHei", sans-serif', label: '现代黑体' },
+  { value: '"Songti SC", SimSun, "Noto Serif SC", serif', label: '宋体衬线' },
+  { value: '"Kaiti SC", KaiTi, STKaiti, serif', label: '楷体' },
+  { value: 'Georgia, "Times New Roman", serif', label: '西文衬线' },
+  { value: '"Courier New", Consolas, monospace', label: '等宽打字机' },
+  { value: 'Impact, "Arial Black", "Microsoft YaHei", sans-serif', label: '超粗展示' },
+]
+
+const WEIGHT_OPTIONS: { value: string; label: string }[] = [
+  { value: '400', label: '常规' },
+  { value: '700', label: '粗体' },
+  { value: '900', label: '特粗' },
+]
 
 const EASING_LABELS: Record<EasingName, string> = {
   linear: '线性匀速',
@@ -59,8 +76,11 @@ const sliderRow = (id: string, label: string, unit: string, value: number, attrs
 const group = (label: string, ...rows: string[]) =>
   `<section class="ctl-group"><div class="ctl-label">${label}</div>${rows.join('')}</section>`
 
+/** Escape a string for use inside a double-quoted HTML attribute. */
+const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+
 const option = <T extends string>(value: T, current: T, text: string) =>
-  `<option value="${value}"${current === value ? ' selected' : ''}>${text}</option>`
+  `<option value="${attr(value)}"${current === value ? ' selected' : ''}>${text}</option>`
 
 export type ControlActions = {
   /** Re-rasterize text into dots (expensive). */
@@ -86,6 +106,12 @@ export function mountControls(
   const easeSel = selectWrap(
     `<select id="f-ease">${(Object.keys(easings) as EasingName[])
       .map((e) => option(e, c.easing, EASING_LABELS[e])).join('')}</select>`)
+  const fontSel = selectWrap(
+    `<select id="f-font">${FONT_OPTIONS
+      .map((f) => option(f.value, c.fontFamily, f.label)).join('')}</select>`)
+  const weightSel = selectWrap(
+    `<select id="f-weight">${WEIGHT_OPTIONS
+      .map((w) => option(w.value, c.fontWeight, w.label)).join('')}</select>`)
 
   // 两栏显式分配，按高度配平（左：内容+点阵；右：颜色+运动+节奏）
   const col = (...groups: string[]) => `<div class="ctl-col">${groups.join('')}</div>`
@@ -93,7 +119,9 @@ export function mountControls(
     col(
       group('文字内容',
         row('文案（每行一段）', `<textarea id="f-phrases" rows="3">${c.phrases.join('\n')}</textarea>`),
-        row('播放模式', modeSel)),
+        row('播放模式', modeSel),
+        row('字体', fontSel),
+        row('字重', weightSel)),
       group('点阵',
         row('点形状', shapeSel),
         sliderRow('f-size', '点大小', '', c.dotSize, 'min="2" max="24"'),
@@ -152,6 +180,8 @@ export function mountControls(
   onSlider('f-rand', 'randomness', '')
   on('#f-move', 'change', (el) => apply('movement', el.value as MovementMode))
   on('#f-ease', 'change', (el) => apply('easing', el.value as EasingName))
+  on('#f-font', 'change', (el) => apply('fontFamily', el.value))
+  on('#f-weight', 'change', (el) => apply('fontWeight', el.value))
 
   // Paint each slider's initial fill.
   container.querySelectorAll<HTMLInputElement>('.row-slider input[type=range]').forEach(setFill)
@@ -159,6 +189,11 @@ export function mountControls(
   // Replace each native <select> popup with a soft glass dropdown.
   container.querySelectorAll<HTMLElement>('.select-wrap').forEach(enhanceSelect)
 }
+
+/** The one open dropdown's close function; a single shared document listener
+ *  (below) closes it on outside click instead of one listener per select. */
+let closeOpenDropdown: (() => void) | null = null
+document.addEventListener('click', () => closeOpenDropdown?.())
 
 /**
  * Progressive enhancement: keep the native <select> (hidden) as the source of
@@ -210,19 +245,26 @@ function enhanceSelect(wrap: HTMLElement): void {
   }
   let open = false
   const openList = () => {
+    closeOpenDropdown?.() // at most one dropdown open at a time
     open = true
+    closeOpenDropdown = () => close(false)
     wrap.classList.add('cs-open')
     trigger.setAttribute('aria-expanded', 'true')
     list.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' })
   }
   const close = (focus: boolean) => {
     open = false
+    closeOpenDropdown = null
     wrap.classList.remove('cs-open')
     trigger.setAttribute('aria-expanded', 'false')
     if (focus) trigger.focus()
   }
 
-  trigger.addEventListener('click', (e) => { e.stopPropagation(); open ? close(false) : openList() })
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (open) close(false)
+    else openList()
+  })
   trigger.addEventListener('keydown', (e) => {
     const i = select.selectedIndex
     if (e.key === 'ArrowDown') {
@@ -232,13 +274,14 @@ function enhanceSelect(wrap: HTMLElement): void {
       e.preventDefault(); commit(select.options[Math.max(i - 1, 0)].value)
       if (!open) openList()
     } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault(); open ? close(false) : openList()
+      e.preventDefault()
+      if (open) close(false)
+      else openList()
     } else if (e.key === 'Escape') {
       close(false)
     }
   })
   list.addEventListener('click', (e) => e.stopPropagation())
-  document.addEventListener('click', () => { if (open) close(false) })
 
   wrap.append(trigger, list)
   sync()

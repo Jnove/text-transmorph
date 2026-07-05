@@ -13,7 +13,6 @@ export interface Config {
   dotShape: 'square' | 'circle'
   dotSize: number        // stage px
   gridSpacing: number    // stage px (cell size; controls density)
-  threshold: number      // 0-255 alpha cut-off
   fontFamily: string
   fontWeight: string
   fillRatio: number      // text height as fraction of stage height (0-1)
@@ -35,7 +34,6 @@ export const defaultConfig: Config = {
   dotShape: 'square',
   dotSize: 10,
   gridSpacing: 14,
-  threshold: 128,
   fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif',
   fontWeight: '700',
   fillRatio: 0.62,

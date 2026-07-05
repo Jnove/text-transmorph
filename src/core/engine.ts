@@ -1,7 +1,7 @@
 import type { Vec2 } from './types'
 import type { Store } from '../config/store'
 import { STAGE_WIDTH, STAGE_HEIGHT } from '../config/types'
-import { sampleText, type SampleOptions } from './sampler'
+import { sampleText, ALPHA_THRESHOLD, type SampleOptions } from './sampler'
 import { ParticleSystem } from './particles'
 import { sequenceState, cycleDuration } from './sequencer'
 import { easings } from './easing'
@@ -31,7 +31,7 @@ export class Engine {
       width: STAGE_WIDTH,
       height: STAGE_HEIGHT,
       cell: Math.max(2, Math.round(c.gridSpacing)),
-      threshold: c.threshold,
+      threshold: ALPHA_THRESHOLD,
       fontFamily: c.fontFamily,
       fontWeight: c.fontWeight,
       fillRatio: c.fillRatio,
