@@ -82,6 +82,12 @@ const stage = document.createElement('canvas')
 const store = createStore(initialConfig)
 const engine = new Engine(stage, store)
 
+// Dev-only handle for driving the engine from the console (stripped from the
+// production build).
+if (import.meta.env.DEV) {
+  ;(window as unknown as Record<string, unknown>).__transmorph = { store, engine, stage }
+}
+
 // Persist to localStorage on every change (coalesced to one write per frame) so
 // a reload restores the exact scene.
 let saveQueued = false

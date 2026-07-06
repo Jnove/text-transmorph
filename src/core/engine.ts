@@ -6,6 +6,11 @@ import { sequenceState, cycleDuration } from './sequencer'
 import { easings } from './easing'
 import { drawStage, type DrawStyle } from '../render/renderer'
 
+/** Fraction of the hold window spent ramping the idle shimmer in (and out
+ *  again at the end), so the resting drift starts and ends at exactly zero
+ *  offset — seamless with the transitions on either side. */
+const IDLE_RAMP = 0.18
+
 export class Engine {
   private stage: HTMLCanvasElement
   private ctx: CanvasRenderingContext2D
@@ -84,9 +89,13 @@ export class Engine {
     const scales = sys.scalesAt(progress)
     // Resting text shimmers gently during the hold so a static frame still
     // breathes; the transition frames already move, so leave them untouched.
+    // The amplitude ramps 0→1→0 across the hold window (IDLE_RAMP at each
+    // edge) so the drift is zero exactly when a transition starts or ends.
     if (hold && c.idleFloat > 0) {
+      const env = Math.min(1, state.holdT / IDLE_RAMP, (1 - state.holdT) / IDLE_RAMP)
+      const amp = c.idleFloat * Math.max(0, env)
       for (const p of points) {
-        const o = idleOffset(p.x, p.y, timeMs, c.idleFloat)
+        const o = idleOffset(p.x, p.y, timeMs, amp)
         p.x += o.x
         p.y += o.y
       }

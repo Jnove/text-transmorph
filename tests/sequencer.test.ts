@@ -13,7 +13,11 @@ describe('cycleDuration', () => {
 describe('sequenceState (sequence mode)', () => {
   it('holds on phrase 0 at the start', () => {
     const s = sequenceState(0, 3, HOLD, TRANS, 'sequence')
-    expect(s).toEqual({ fromIndex: 0, toIndex: 1, progress: 0, phase: 'hold' })
+    expect(s).toEqual({ fromIndex: 0, toIndex: 1, progress: 0, phase: 'hold', holdT: 0 })
+  })
+  it('tracks 0→1 progress inside the hold window', () => {
+    expect(sequenceState(HOLD * 0.25, 3, HOLD, TRANS, 'sequence').holdT).toBeCloseTo(0.25, 6)
+    expect(sequenceState(HOLD * 0.75, 3, HOLD, TRANS, 'sequence').holdT).toBeCloseTo(0.75, 6)
   })
   it('enters transition after the hold window', () => {
     const s = sequenceState(HOLD + TRANS / 2, 3, HOLD, TRANS, 'sequence')
@@ -21,6 +25,7 @@ describe('sequenceState (sequence mode)', () => {
     expect(s.fromIndex).toBe(0)
     expect(s.toIndex).toBe(1)
     expect(s.progress).toBeCloseTo(0.5, 6)
+    expect(s.holdT).toBe(0) // idle shimmer must be inert during transitions
   })
   it('advances to the next phrase in the next unit', () => {
     const s = sequenceState(1500, 3, HOLD, TRANS, 'sequence')

@@ -318,6 +318,17 @@ describe('idleOffset', () => {
     const b = idleOffset(101, 50, 1234, 2)
     expect(a).not.toEqual(b)
   })
+  it('moves neighbouring dots coherently, not in opposite directions', () => {
+    // Two dots one grid cell apart (default spacing 14px) must drift almost
+    // together — a per-dot random phase would let them pull apart, which
+    // renders as boiling jitter instead of a calm breathe.
+    const amp = 2
+    const a = idleOffset(500, 260, 1000, amp)
+    const b = idleOffset(514, 260, 1000, amp)
+    const c = idleOffset(500, 274, 1000, amp)
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(amp * 0.25)
+    expect(Math.hypot(a.x - c.x, a.y - c.y)).toBeLessThan(amp * 0.25)
+  })
 })
 
 describe('ParticleSystem single-phase (cross / morph)', () => {

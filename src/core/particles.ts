@@ -283,20 +283,17 @@ function easeOutBack(t: number): number {
  *  endpoints — dots look like they recede into depth and land back in front. */
 const FLIGHT_SHRINK = 0.4
 
-/** A stable pseudo-random phase in [0, 2π) for a stage position — lets the idle
- *  shimmer differ per dot without storing per-dot state. */
-function phaseFor(x: number, y: number): number {
-  const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453
-  return (h - Math.floor(h)) * Math.PI * 2
-}
-
-/** Tiny per-dot drift for the resting text during the hold phase, so a static
- *  frame still breathes. `amp` is the peak offset in stage px (0 → no motion). */
+/** Tiny drift for the resting text during the hold phase, so a static frame
+ *  still breathes. The phase varies *smoothly* with position (a slow travelling
+ *  wave, wavelength several hundred px), so neighbouring dots move together as
+ *  a coherent ripple — a per-dot random phase would make adjacent dots pull in
+ *  opposite directions, which reads as boiling jitter. `amp` is the peak offset
+ *  in stage px (0 → no motion). */
 export function idleOffset(x: number, y: number, timeMs: number, amp: number): Vec2 {
   if (amp <= 0) return { x: 0, y: 0 }
-  const ph = phaseFor(x, y)
-  const w = timeMs * 0.0022
-  return { x: Math.sin(w + ph) * amp, y: Math.cos(w * 0.85 + ph) * amp }
+  const ph = x * 0.008 + y * 0.011
+  const t = timeMs * 0.0014
+  return { x: Math.sin(t + ph) * amp * 0.5, y: Math.cos(t * 0.8 + ph) * amp }
 }
 
 export class ParticleSystem {
