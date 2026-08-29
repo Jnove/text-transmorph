@@ -50,12 +50,16 @@ npm run dev      # 启动开发服务器（Vite HMR）
 
 `src/lib/` 是框架无关的嵌入 API —— 不含界面，只提供「指定参数 → 在 canvas 上播放动效」的能力。完整用法见 `examples/basic.html`（`npm run dev` 后访问 `/examples/basic.html`）。
 
+### 通过 npm 安装
+
+包已发布到 npm（仓库名见 [CHANGELOG](./CHANGELOG.md)）：
+
 ```bash
-npm run build:lib   # 产出 dist-lib/text-transmorph.js（ESM）与 .umd.cjs
+npm install text-transmorph
 ```
 
 ```ts
-import { createTextTransmorph } from './dist-lib/text-transmorph.js'
+import { createTextTransmorph } from 'text-transmorph'
 
 const tm = createTextTransmorph(document.querySelector('#stage'), {
   phrases: ['文字解离', 'Text Transmorph'],
@@ -70,6 +74,22 @@ tm.renderAt(1234)                         // 手动驱动：推进到任意时�
 tm.durationMs()                           // 当前时间轴总时长
 tm.destroy()                              // 释放循环与观察器
 ```
+
+`package.json` 的 `exports` 字段同时提供了 ESM 与 UMD 两路入口，TypeScript 类型随 `import type` 自动拿到；构建产物体积约 33 kB（gzip 10 kB）。
+
+### 在本仓库内调试库
+
+直接引用构建产物（适合在自己 fork 上迭代）：
+
+```bash
+npm run build:lib   # 产出 dist-lib/text-transmorph.js（ESM）与 .umd.cjs
+```
+
+```ts
+import { createTextTransmorph } from './dist-lib/text-transmorph.js'
+```
+
+发布前 `npm run prepublishOnly` 会自动跑 `build:lib` + 测试 + lint，避免把没测过的代码推上去。
 
 选项即控制台的参数集（`phrases`、`movement`、`transitionMs`、`holdMs`、`seed`、`dotSize`、`gridSpacing` 等），另加播放选项：
 
