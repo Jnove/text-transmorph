@@ -61,9 +61,11 @@ app.innerHTML = `
 
 // 深浅色主题切换：优先保存值，否则跟随系统 prefers-color-scheme
 const rootEl = document.documentElement
-const savedTheme = localStorage.getItem('tm-theme')
+const THEME_STORAGE_KEY = 'tm-theme'
+const savedTheme = localStorage.getItem(THEME_STORAGE_KEY)
+const colorScheme = matchMedia('(prefers-color-scheme: dark)')
 const initialTheme = savedTheme
-  ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  ?? (colorScheme.matches ? 'dark' : 'light')
 rootEl.setAttribute('data-theme', initialTheme)
 const themeBtn = document.querySelector<HTMLButtonElement>('#theme-toggle')!
 const themeIcon = themeBtn.querySelector<HTMLElement>('.tt-icon')!
@@ -74,13 +76,51 @@ syncThemeIcon()
 themeBtn.addEventListener('click', () => {
   const next = rootEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
   rootEl.setAttribute('data-theme', next)
-  localStorage.setItem('tm-theme', next)
+  localStorage.setItem(THEME_STORAGE_KEY, next)
+  syncThemeIcon()
+})
+// Follow OS-wide toggles once the page is open. An explicit choice via the
+// toggle above sticks (localStorage takes precedence); with no saved theme,
+// the live `prefers-color-scheme` value drives `data-theme`.
+colorScheme.addEventListener?.('change', () => {
+  if (localStorage.getItem(THEME_STORAGE_KEY)) return
+  rootEl.setAttribute('data-theme', colorScheme.matches ? 'dark' : 'light')
   syncThemeIcon()
 })
 
+const display = document.querySelector<HTMLCanvasElement>('#display')!
+const capDim = document.querySelector<HTMLElement>('.cap-dim')!
+// Keep the preview canvas buffer and its layout aspect-ratio in step with the
+// chosen output size (the stage canvas itself is resized inside Engine.resample).
+function syncDisplaySize() {
+  const { stageWidth: w, stageHeight: h } = store.get()
+  if (display.width !== w || display.height !== h) {
+    display.width = w
+    display.height = h
+    display.style.aspectRatio = `${w} / ${h}`
+    capDim.textContent = `${w} × ${h}`
+  }
+}
+
+// The engine watches the store itself: structural changes (text, grid, font,
+// size) re-rasterize, motion-only changes rebuild particle systems. The stage
+// is an offscreen canvas whose buffer size must follow the output dimensions
+// (onResize), initialised from the starting config here.
 const stage = document.createElement('canvas')
+stage.width = initialConfig.stageWidth
+stage.height = initialConfig.stageHeight
 const store = createStore(initialConfig)
-const engine = new Engine(stage, store)
+const engine = new Engine({
+  ctx: stage.getContext('2d')!,
+  store,
+  onResize: (w, h) => {
+    stage.width = w
+    stage.height = h
+    syncDisplaySize()
+  },
+})
+syncDisplaySize()
+const dctx = display.getContext('2d')!
 
 // Dev-only handle for driving the engine from the console (stripped from the
 // production build).
@@ -102,22 +142,6 @@ store.subscribe(() => {
   })
 })
 
-const display = document.querySelector<HTMLCanvasElement>('#display')!
-const capDim = document.querySelector<HTMLElement>('.cap-dim')!
-// Keep the preview canvas buffer and its layout aspect-ratio in step with the
-// chosen output size (the stage canvas itself is resized inside Engine.resample).
-function syncDisplaySize() {
-  const { stageWidth: w, stageHeight: h } = store.get()
-  if (display.width !== w || display.height !== h) {
-    display.width = w
-    display.height = h
-    display.style.aspectRatio = `${w} / ${h}`
-    capDim.textContent = `${w} × ${h}`
-  }
-}
-syncDisplaySize()
-const dctx = display.getContext('2d')!
-
 // Respect the OS "reduce motion" setting: freeze the preview on the first
 // phrase at rest instead of auto-cycling. Export still runs on demand.
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)')
@@ -135,10 +159,6 @@ requestAnimationFrame(frame)
 mountControls(
   document.querySelector<HTMLElement>('#controls')!,
   store,
-  {
-    resample: () => { engine.resample(); syncDisplaySize() },
-    resetSystems: () => engine.resetSystems(),
-  },
 )
 
 // 文件名移到左侧导出区，直接写回 store（非结构性，无需重建）
@@ -188,7 +208,6 @@ function bindExport(
 bindExport('#exp-gif', '.gif', 'GIF', (progress) =>
   exportGif(engine, stage, 25, engine.durationMs(), (done, total) =>
     progress(`正在生成 GIF… ${done}/${total} 帧`)))
-
 // MediaRecorder 走实时 rAF：标签页切到后台会被浏览器节流、录出坏帧，所以提示。
 bindExport('#exp-webm', '.webm', 'WebM', (progress) => {
   progress('正在录制 WebM…（请保持页面在前台）')
