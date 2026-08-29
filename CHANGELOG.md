@@ -5,13 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] - 2026-08-29
 
-### Added
-- Engine re-samples once webfonts have settled (`document.fonts.ready` +
-  `loadingdone`) so async-loaded faces don't leave the dot layout in fallback fonts.
-- Live `prefers-reduced-motion` toggling in the embeddable library:
-  freezing / resuming follows the OS preference without reload.
+### Fixed
+- `verticalCross` / `horizontalCross`: drop the perpendicular wobble that
+  was making the swap read as a sideways drift — pure axis-aligned lerp
+  now (crossPair already mirrors the halves, no extra bow needed).
+- `swirl`: monotonic one-revolution rotation (`ang = a0 + da·e + 2π·e`,
+  `rad = lerp(r0, r1, e)`) — no more peak-and-unwrap, no radial pulse.
+  The rotation reads as "go around once" instead of "bounce in and out".
+
+### Changed
+- Default `dotSize` 9 → 2, `gridSpacing` 13 → 1.5, `idleFloat` 1.5 → 0:
+  the rest text renders as a small pixel-art-style block instead of
+  chunky squares; the in-repo examples pin the same defaults
+  explicitly.
+- "随机形态" reroll button: 🎲 emoji replaced by an inline
+  refresh-cw SVG (uses `currentColor` so it picks up theme colours,
+  rotates -30° on hover for a tactile cue).
+- README: collapsed from a long parameter / export / deployment /
+  architecture / test dump into the four sections that matter —
+  showcase, what it is, quick start, library use.
 
 ## [0.1.0] - 2026-08-29
 

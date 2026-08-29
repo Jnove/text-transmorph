@@ -1,6 +1,6 @@
 {
   "name": "text-transmorph",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "把文字拆成点阵粒子、再聚成下一句的解离重组动画。框架无关、可独立嵌入。",
   "private": false,
   "type": "module",
