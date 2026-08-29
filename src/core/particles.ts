@@ -313,9 +313,9 @@ export class ParticleSystem {
   private readonly stagger: number[]
   private readonly center: Vec2
   private readonly swirl: boolean
-  /** Peak angular sweep (rad) and radial bulge (px) for the swirl vortex. */
+  /** Peak angular sweep (rad) for the swirl vortex. The radial pulse was
+   *  removed when the swirl became a monotonic one-revolution rotation. */
   private readonly swirlSpin: number
-  private readonly swirlBulge: number
 
   constructor(from: Vec2[], to: Vec2[], opts: ParticleSystemOptions) {
     const movement = opts.movement ?? 'random'
@@ -332,7 +332,6 @@ export class ParticleSystem {
     // exact) since the design now requires exactly one revolution; bumping
     // scatterAmount should not multiply the rotation further.
     this.swirlSpin = Math.PI * 2
-    this.swirlBulge = 0
     const paired = pairPoints(from, to, movement)
     this.src = paired.src
     this.dst = paired.dst
