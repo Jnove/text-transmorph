@@ -208,25 +208,29 @@ describe('ParticleSystem gravity (collapse then spring)', () => {
   })
 })
 
-describe('cross-mode perpendicular wobble', () => {
+describe('cross-mode is a pure axis-aligned swap', () => {
   const o = {
     seed: 1, scatterAmount: 100,
     ease: (t: number) => t, center: { x: 5, y: 50 },
   }
-  it('verticalCross with randomness 0 has zero horizontal wobble', () => {
-    const s: Vec2[] = [{ x: 5, y: 0 }, { x: 5, y: 100 }]
-    const ps = new ParticleSystem(s, s, { ...o, randomness: 0, movement: 'verticalCross' })
-    for (const p of ps.positionsAt(0.5)) expect(p.x).toBeCloseTo(5, 6)
-  })
-  it('verticalCross with randomness>0 wobbles horizontally, peaking mid-transition', () => {
+  // verticalCross: every dot stays exactly on its src x-coordinate through
+  // the whole transition (no perpendicular bow). The fold reads as a pure
+  // up↔down swap rather than a sideways drift.
+  it('verticalCross keeps x locked to src.x for the whole transition', () => {
     const s: Vec2[] = [{ x: 5, y: 0 }, { x: 5, y: 100 }]
     const ps = new ParticleSystem(s, s, { ...o, randomness: 0.8, movement: 'verticalCross' })
-    // endpoints stay exact (envelope sin(πt) is 0 there)
-    for (const p of ps.positionsAt(0)) expect(p.x).toBeCloseTo(5, 6)
-    for (const p of ps.positionsAt(1)) expect(p.x).toBeCloseTo(5, 6)
-    // at least one particle is displaced horizontally at the midpoint
-    const mid = ps.positionsAt(0.5)
-    expect(mid.some((p) => Math.abs(p.x - 5) > 1)).toBe(true)
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      for (const p of ps.positionsAt(t)) expect(p.x).toBeCloseTo(5, 6)
+    }
+  })
+  // horizontalCross: every dot stays exactly on its src y-coordinate.
+  it('horizontalCross keeps y locked to src.y for the whole transition', () => {
+    const s: Vec2[] = [{ x: 0, y: 50 }, { x: 100, y: 50 }]
+    const d: Vec2[] = [{ x: 0, y: 50 }, { x: 100, y: 50 }]
+    const ps = new ParticleSystem(s, d, { ...o, randomness: 0.8, movement: 'horizontalCross' })
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      for (const p of ps.positionsAt(t)) expect(p.y).toBeCloseTo(50, 6)
+    }
   })
 })
 

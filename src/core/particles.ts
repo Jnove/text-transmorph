@@ -220,11 +220,6 @@ export function waypointFor(
   }
 }
 
-/** How much of `randomness × scatterAmount` becomes peak perpendicular bowing
- *  on the single-phase cross modes. The sign is mirrored by the source side,
- *  so the fold stays coherent instead of looking like independent noise. */
-const CROSS_WOBBLE = 0.5
-
 /** Gravity timeline (fractions of the transition):
  *  [0, GRAVITY_COLLAPSE_END]  collapse — dots fall and pancake onto the floor
  *  [..., GRAVITY_RISE_START]  settle — rubble rests in place (the "wait")
@@ -330,8 +325,14 @@ export class ParticleSystem {
     this.ease = opts.ease
     this.center = center
     this.swirl = movement === 'swirl'
-    this.swirlSpin = (opts.scatterAmount / RADIAL_REF) * Math.PI
-    this.swirlBulge = opts.scatterAmount * 0.12
+    // Bound the extra swirl so the total perceived rotation stays close to one
+    // full revolution (2π): the natural src→dst angular sweep contributes up
+    // to ~half a circle, so the extra spin is capped at π. Combined with a
+    // smaller radial bulge, the vortex reads as "rotate once" instead of
+    // "burst + multiple loops". The cap kicks in at default settings
+    // (scatterAmount 280 → 1.27π → π).
+    this.swirlSpin = Math.min((opts.scatterAmount / RADIAL_REF) * Math.PI, Math.PI)
+    this.swirlBulge = opts.scatterAmount * 0.06
     const paired = pairPoints(from, to, movement)
     this.src = paired.src
     this.dst = paired.dst
@@ -368,32 +369,15 @@ export class ParticleSystem {
       } else {
         this.gLand = null
       }
-    } else if (movement === 'verticalCross' || movement === 'horizontalCross') {
-      // Single-phase swap with a mirrored perpendicular bow: the two halves
-      // bend away from each other through the crossing instead of each dot
-      // picking an unrelated random side.
-      const amp = opts.randomness * opts.scatterAmount * CROSS_WOBBLE
-      const wobbleX = movement === 'verticalCross'
-      const perp: Vec2[] = []
-      for (let i = 0; i < this.src.length; i++) {
-        const axis = wobbleX
-          ? this.src[i].y - center.y
-          : this.src[i].x - center.x
-        const side = axis === 0 ? (i % 2 === 0 ? -1 : 1) : Math.sign(axis)
-        const variation = 0.85 + rand() * 0.15
-        const signed = side * variation
-        perp.push(
-          wobbleX
-            ? { x: signed * amp, y: 0 }
-            : { x: 0, y: signed * amp },
-        )
-      }
-      this.way = null
-      this.perp = perp
-      this.gLand = null
     } else {
-      // morph / swirl: no waypoint or perpendicular wobble stored here (swirl
-      // interpolates in polar space directly in positionsAt).
+      // verticalCross / horizontalCross / morph / swirl: no waypoint stored
+      // here. Cross modes interpolate src→dst on the appropriate axis with
+      // the natural ease; the previous "perpendicular bow" made the cross
+      // read as a sideways drift because the bow amplitude (~scatterAmount ×
+      // CROSS_WOBBLE) was comparable to the swap distance itself. The pairing
+      // (crossPair) already mirrors the halves top↔bottom / left↔right, so a
+      // pure lerp is enough. Swirl is interpolated in polar space directly in
+      // positionsAt.
       this.way = null
       this.perp = null
       this.gLand = null
