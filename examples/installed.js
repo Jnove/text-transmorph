@@ -1,6 +1,9 @@
-// After `npm install text-transmorph` this resolves via the package's exports
-// map. In this repo we exercise the same path through a local npm-link, so the
-// import below behaves exactly like an external consumer would see it.
+// After `npm install text-transmorph` (or `npm link text-transmorph` against
+// this repo's dist-lib build) this resolves via the package's exports map.
+// While developing in this repo, Vite's dev server resolves the bare specifier
+// `text-transmorph` to `./dist-lib/text-transmorph.js` automatically — so this
+// file loads under `npm run dev` without an explicit link. Outside the dev
+// server you'll need either a real install or a link.
 import { createTextTransmorph } from 'text-transmorph'
 
 const canvas = document.querySelector('#stage')
