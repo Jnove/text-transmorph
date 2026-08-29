@@ -1,24 +1,65 @@
 {
   "name": "text-transmorph",
-  "private": true,
   "version": "0.1.0",
+  "description": "把文字拆成点阵粒子、再聚成下一句的解离重组动画。框架无关、可独立嵌入。",
+  "private": false,
   "type": "module",
+  "keywords": [
+    "canvas",
+    "animation",
+    "particle",
+    "text",
+    "morph",
+    "transition",
+    "dots",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "Jnove",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jnove/text-transmorph.git"
+  },
+  "homepage": "https://github.com/Jnove/text-transmorph#readme",
+  "bugs": {
+    "url": "https://github.com/Jnove/text-transmorph/issues"
+  },
+  "main": "./dist-lib/text-transmorph.umd.cjs",
+  "module": "./dist-lib/text-transmorph.js",
+  "types": "./dist-lib/types/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-lib/types/lib/index.d.ts",
+      "import": "./dist-lib/text-transmorph.js",
+      "require": "./dist-lib/text-transmorph.umd.cjs",
+      "default": "./dist-lib/text-transmorph.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist-lib",
+    "LICENSE",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "sideEffects": false,
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
+    "prepublishOnly": "npm run build:lib && npm run test && npm run lint",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint ."
   },
   "devDependencies": {
+    "@types/node": "^26.4.0",
     "eslint": "^10.6.0",
+    "gifenc": "^1.0.3",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.62.1",
     "vite": "^5.4.0",
     "vitest": "^2.0.5"
-  },
-  "dependencies": {
-    "gifenc": "^1.0.3"
   }
 }

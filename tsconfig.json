@@ -10,7 +10,7 @@
     "noImplicitReturns": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["vitest/globals", "vite/client"]
+    "types": ["vitest/globals", "vite/client", "node"]
   },
   "include": ["src", "tests"]
 }
