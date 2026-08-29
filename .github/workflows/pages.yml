@@ -15,6 +15,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npm ci
+      # Build the embeddable library first so the lib-package tests in
+      # `npm test` have the `dist-lib/` artifacts to verify. `npm test`
+      # would otherwise fail on a fresh checkout because those tests are
+      # integration-style smoke checks of the published shape.
+      - run: npm run build:lib
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3

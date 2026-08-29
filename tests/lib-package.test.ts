@@ -8,11 +8,19 @@ import { dirname, resolve } from 'node:path'
  * and verify the artifacts that end up in npm tarball match what `package.json`
  * promises to ship. They are intentionally filesystem-level (no module imports)
  * so a green run does not depend on the canvas backend being available in Node.
+ *
+ * The artifact checks skip themselves when `dist-lib/` is missing so that
+ * contributors running `npm test` directly do not need to pre-build. CI's
+ * Pages workflow runs `npm run build:lib` before `npm test`, so the same
+ * tests check the freshly produced artifacts there.
  */
-describe('library build artifacts', () => {
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const artifactsBuilt = existsSync(resolve(root, 'dist-lib/text-transmorph.js'))
 
-  it('emits the ESM entry consumed by `exports.import`', () => {
+const itIfBuilt = artifactsBuilt ? it : it.skip
+
+describe('library build artifacts', () => {
+  itIfBuilt('emits the ESM entry consumed by `exports.import`', () => {
     const p = resolve(root, 'dist-lib/text-transmorph.js')
     expect(existsSync(p)).toBe(true)
     const src = readFileSync(p, 'utf8')
@@ -21,7 +29,7 @@ describe('library build artifacts', () => {
     expect(src.startsWith('/*')).toBe(true)
   })
 
-  it('emits the UMD entry consumed by `exports.require` and exposes the global name', () => {
+  itIfBuilt('emits the UMD entry consumed by `exports.require` and exposes the global name', () => {
     const p = resolve(root, 'dist-lib/text-transmorph.umd.cjs')
     expect(existsSync(p)).toBe(true)
     const src = readFileSync(p, 'utf8')
@@ -29,7 +37,7 @@ describe('library build artifacts', () => {
     expect(src).toMatch(/TextTransmorph/)
   })
 
-  it('emits TypeScript declarations reachable via `exports.types`', () => {
+  itIfBuilt('emits TypeScript declarations reachable via `exports.types`', () => {
     const typesEntry = resolve(root, 'dist-lib/types/lib/index.d.ts')
     expect(existsSync(typesEntry)).toBe(true)
     const src = readFileSync(typesEntry, 'utf8')
