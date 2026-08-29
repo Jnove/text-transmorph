@@ -325,14 +325,14 @@ export class ParticleSystem {
     this.ease = opts.ease
     this.center = center
     this.swirl = movement === 'swirl'
-    // Bound the extra swirl so the total perceived rotation stays close to one
-    // full revolution (2π): the natural src→dst angular sweep contributes up
-    // to ~half a circle, so the extra spin is capped at π. Combined with a
-    // smaller radial bulge, the vortex reads as "rotate once" instead of
-    // "burst + multiple loops". The cap kicks in at default settings
-    // (scatterAmount 280 → 1.27π → π).
-    this.swirlSpin = Math.min((opts.scatterAmount / RADIAL_REF) * Math.PI, Math.PI)
-    this.swirlBulge = opts.scatterAmount * 0.06
+    // One full revolution: each dot traces an arc that wraps around by 2π
+    // before settling on its target. With the monotonic `e` envelope below,
+    // this means "go forward one circle, then land" — no peak-then-unwrap
+    // bounce, no radial pulse. The cap is left implicit (the formula is
+    // exact) since the design now requires exactly one revolution; bumping
+    // scatterAmount should not multiply the rotation further.
+    this.swirlSpin = Math.PI * 2
+    this.swirlBulge = 0
     const paired = pairPoints(from, to, movement)
     this.src = paired.src
     this.dst = paired.dst
@@ -433,9 +433,11 @@ export class ParticleSystem {
         let da = a1 - a0
         while (da > Math.PI) da -= Math.PI * 2
         while (da < -Math.PI) da += Math.PI * 2
-        const bump = Math.sin(Math.PI * e)
-        const ang = a0 + da * e + this.swirlSpin * bump
-        const rad = lerp(r0, r1, e) + this.swirlBulge * bump
+        // Monotonic rotation: ang advances from a0 to a1 + 2π in one direction
+        // (no peak-and-unwrap), and rad lerps smoothly without pulsing. The
+        // 2π wrap-around means the dot lands exactly on its target at e=1.
+        const ang = a0 + da * e + this.swirlSpin * e
+        const rad = lerp(r0, r1, e)
         out.push({ x: c.x + Math.cos(ang) * rad, y: c.y + Math.sin(ang) * rad })
       }
       return out
