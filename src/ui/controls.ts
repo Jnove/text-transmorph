@@ -3,16 +3,6 @@ import { type Config, STAGE_PRESETS } from '../config/types'
 import { easings, type EasingName } from '../core/easing'
 import type { MovementMode } from '../core/particles'
 
-/** Keys that change the sampled dot layout — require re-rasterizing text. */
-const RESAMPLE = new Set<keyof Config>([
-  'phrases', 'gridSpacing', 'fontFamily', 'fontWeight', 'fillRatio',
-])
-/** Keys that only change motion — cached particle systems must rebuild,
- *  but the sampled dots stay valid. */
-const RESET = new Set<keyof Config>([
-  'scatterAmount', 'randomness', 'stagger', 'easing', 'movement', 'seed',
-])
-
 const MOVEMENT_LABELS: Record<MovementMode, string> = {
   random: '随机散开',
   explode: '径向爆炸',
@@ -82,17 +72,9 @@ const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 const option = <T extends string>(value: T, current: T, text: string) =>
   `<option value="${attr(value)}"${current === value ? ' selected' : ''}>${text}</option>`
 
-export type ControlActions = {
-  /** Re-rasterize text into dots (expensive). */
-  resample: () => void
-  /** Rebuild particle systems only (cheap). */
-  resetSystems: () => void
-}
-
 export function mountControls(
   container: HTMLElement,
   store: Store,
-  actions: ControlActions,
 ): void {
   const c = store.get()
 
@@ -130,8 +112,8 @@ export function mountControls(
       group('点阵',
         row('画布尺寸', sizeSel),
         row('点形状', shapeSel),
-        sliderRow('f-size', '点大小', '', c.dotSize, 'min="2" max="24"'),
-        sliderRow('f-grid', '网格密度', '', c.gridSpacing, 'min="4" max="60"'),
+        sliderRow('f-size', '点大小', '', c.dotSize, 'min="0.5" max="14" step="0.5"'),
+        sliderRow('f-grid', '网格间距', '', c.gridSpacing, 'min="0.5" max="25" step="0.5"'),
         sliderRow('f-fill', '字号占比', '', c.fillRatio, 'min="0.3" max="0.9" step="0.02"'))) +
     col(
       group('颜色',
@@ -154,8 +136,6 @@ export function mountControls(
 
   const apply = (key: keyof Config, value: Config[keyof Config]) => {
     store.set({ [key]: value } as Partial<Config>)
-    if (RESAMPLE.has(key)) actions.resample()
-    else if (RESET.has(key)) actions.resetSystems()
   }
   const on = (id: string, ev: string, fn: (el: HTMLInputElement) => void) => {
     const el = container.querySelector<HTMLInputElement>(id)
@@ -168,13 +148,36 @@ export function mountControls(
     el.style.setProperty('--fill', (max > min ? ((v - min) / (max - min)) * 100 : 0) + '%')
   }
   // Slider handler: refresh the live readout, repaint the fill, then apply.
-  const onSlider = (id: string, key: keyof Config, unit: string) =>
+  const onSlider = (id: string, key: keyof Config, unit: string, after?: () => void) =>
     on(`#${id}`, 'input', (el) => {
       const out = container.querySelector(`#${id}-out`)
       if (out) out.textContent = el.value + unit
       setFill(el)
       apply(key, Number(el.value))
+      after?.()
     })
+
+  // Keep the two visual scales valid together: a particle cannot be larger
+  // than the grid cell it represents without filling its neighbours.
+  const syncDotSizeLimit = () => {
+    const size = container.querySelector<HTMLInputElement>('#f-size')
+    const grid = container.querySelector<HTMLInputElement>('#f-grid')
+    if (!size || !grid) return
+    const rawGrid = Number(grid.value)
+    const fallbackGrid = rawGrid < 2
+    const min = fallbackGrid ? 2 : 0.5
+    const max = Math.min(14, Math.max(2, rawGrid))
+    size.min = String(min)
+    size.max = String(max)
+    const next = Math.min(max, Math.max(min, Number(size.value)))
+    if (Number(size.value) !== next || store.get().dotSize !== next) {
+      size.value = String(next)
+      const out = container.querySelector('#f-size-out')
+      if (out) out.textContent = size.value
+      setFill(size)
+      apply('dotSize', next)
+    }
+  }
 
   on('#f-phrases', 'input', (el) =>
     apply('phrases', el.value.split('\n').map((s) => s.trim()).filter(Boolean)))
@@ -185,7 +188,7 @@ export function mountControls(
   on('#f-grad', 'change', (el) => apply('gradient', el.checked))
   on('#f-shape', 'change', (el) => apply('dotShape', el.value as Config['dotShape']))
   onSlider('f-size', 'dotSize', '')
-  onSlider('f-grid', 'gridSpacing', '')
+  onSlider('f-grid', 'gridSpacing', '', syncDotSizeLimit)
   onSlider('f-fill', 'fillRatio', '')
   onSlider('f-trans', 'transitionMs', 'ms')
   onSlider('f-hold', 'holdMs', 'ms')
@@ -199,16 +202,16 @@ export function mountControls(
   on('#f-weight', 'change', (el) => apply('fontWeight', el.value))
   // Re-roll the seed → same params, a freshly scattered form.
   on('#f-reroll', 'click', () => apply('seed', Math.floor(Math.random() * 1e9)))
-  // Size preset sets both dimensions at once, then re-samples at the new size.
+  // Size preset sets both dimensions at once; the engine re-samples on change.
   on('#f-size-preset', 'change', (el) => {
     const p = STAGE_PRESETS.find((pp) => pp.value === el.value)
     if (!p) return
     store.set({ stageWidth: p.width, stageHeight: p.height })
-    actions.resample()
   })
 
   // Paint each slider's initial fill.
   container.querySelectorAll<HTMLInputElement>('.row-slider input[type=range]').forEach(setFill)
+  syncDotSizeLimit()
 
   // Replace each native <select> popup with a soft glass dropdown.
   container.querySelectorAll<HTMLElement>('.select-wrap').forEach(enhanceSelect)

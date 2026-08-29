@@ -21,15 +21,21 @@ export function pointsFromAlpha(
 ): Vec2[] {
   const { cols, rows, offsetX, offsetY } = gridDimensions(width, height, cell)
   const points: Vec2[] = []
+  // A subpixel cell can visit the same raster pixel more than once. The source
+  // image has no extra information there, so keep one representative point
+  // instead of stacking duplicate particles and amplifying antialiasing.
+  const seenPixels = cell < 1 ? new Uint8Array(width * height) : null
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const cx = offsetX + col * cell + cell / 2
       const cy = offsetY + row * cell + cell / 2
       const px = Math.floor(cx)
       const py = Math.floor(cy)
-      if (alpha[py * width + px] >= threshold) {
-        points.push({ x: cx, y: cy })
-      }
+      const index = py * width + px
+      if (alpha[index] < threshold) continue
+      if (seenPixels && seenPixels[index]) continue
+      if (seenPixels) seenPixels[index] = 1
+      points.push(seenPixels ? { x: px + 0.5, y: py + 0.5 } : { x: cx, y: cy })
     }
   }
   return points

@@ -14,6 +14,14 @@ describe('gridDimensions', () => {
     expect(d.cols).toBe(5)
     expect(d.offsetX).toBeCloseTo(0.5)
   })
+
+  it('supports subpixel sampling cells', () => {
+    const d = gridDimensions(4, 2, 0.5)
+    expect(d.cols).toBe(8)
+    expect(d.rows).toBe(4)
+    expect(d.offsetX).toBe(0)
+    expect(d.offsetY).toBe(0)
+  })
 })
 
 describe('pointsFromAlpha', () => {
@@ -29,5 +37,10 @@ describe('pointsFromAlpha', () => {
   it('emits nothing for a blank field', () => {
     const alpha = new Uint8ClampedArray(16)
     expect(pointsFromAlpha(alpha, 4, 4, 2, 128)).toEqual([])
+  })
+
+  it('deduplicates raster pixels for subpixel cells', () => {
+    const alpha = new Uint8ClampedArray([255, 0])
+    expect(pointsFromAlpha(alpha, 2, 1, 0.5, 128)).toEqual([{ x: 0.5, y: 0.5 }])
   })
 })

@@ -284,6 +284,19 @@ describe('ParticleSystem stagger', () => {
     const b = new ParticleSystem(from, to, { ...base, stagger: 0 }).positionsAt(0.5)
     expect(a).toEqual(b)
   })
+
+  it('uses a spatial wave with only a small seeded jitter', () => {
+    const source: Vec2[] = [
+      { x: 50, y: 0 }, { x: 500, y: 0 }, { x: 950, y: 0 },
+    ]
+    const target: Vec2[] = source.map((p) => ({ x: p.x, y: 100 }))
+    const ps = new ParticleSystem(source, target, {
+      ...base, center: { x: 500, y: 50 }, stagger: 0.6,
+    })
+    const early = ps.positionsAt(0.2)
+    expect(early[0].y).toBeGreaterThan(0)
+    expect(early[2].y).toBe(0)
+  })
 })
 
 describe('ParticleSystem scalesAt', () => {
@@ -350,5 +363,21 @@ describe('ParticleSystem single-phase (cross / morph)', () => {
     for (const t of [0, 0.25, 0.5, 0.75, 1]) {
       for (const p of ps.positionsAt(t)) expect(p.x).toBeCloseTo(5, 6)
     }
+  })
+
+  it('cross modes stay synchronized even when stagger is requested', () => {
+    const ps = new ParticleSystem(
+      [{ x: 5, y: 0 }, { x: 5, y: 100 }],
+      [{ x: 5, y: 0 }, { x: 5, y: 100 }],
+      {
+        ...o,
+        movement: 'verticalCross',
+        center: { x: 5, y: 50 },
+        stagger: 0.6,
+      },
+    )
+    const points = ps.positionsAt(0.25)
+    expect(points[0].y).toBeCloseTo(25, 6)
+    expect(points[1].y).toBeCloseTo(75, 6)
   })
 })

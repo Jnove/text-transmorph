@@ -20,9 +20,9 @@ export type ParticleSystemOptions = {
   movement?: MovementMode
   center?: Vec2
   floorY?: number
-  /** 0–0.6: per-particle start-delay spread. Particles that start later rush to
-   *  catch up so every dot still lands exactly on the target at progress 1 —
-   *  the transition reads as a wave instead of a rigid block. Default 0. */
+  /** 0–0.6: spatial start-delay spread with seeded jitter. Particles that start
+   *  later rush to catch up so every dot still lands exactly on the target at
+   *  progress 1 — the transition reads as a wave instead of a rigid block. */
   stagger?: number
 }
 
@@ -42,27 +42,6 @@ function isTwoPhase(mode: MovementMode): boolean {
 function sortedByX(pts: Vec2[]): Vec2[] {
   return [...pts].sort((a, b) => a.x - b.x || a.y - b.y)
 }
-function sortedByY(pts: Vec2[]): Vec2[] {
-  return [...pts].sort((a, b) => a.y - b.y || a.x - b.x)
-}
-
-/** Nearest point in `sorted` (already ordered by `axis`) to the given coord,
- *  via binary search. Used to relocate a leftover particle the *shortest*
- *  distance to an occupied line. `sorted` must be non-empty. */
-function nearestByAxis(sorted: Vec2[], coord: number, axis: 'x' | 'y'): Vec2 {
-  const val = axis === 'x' ? (p: Vec2) => p.x : (p: Vec2) => p.y
-  let lo = 0
-  let hi = sorted.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (val(sorted[mid]) < coord) lo = mid + 1
-    else hi = mid
-  }
-  const a = sorted[lo]
-  const b = sorted[lo > 0 ? lo - 1 : lo]
-  return Math.abs(val(a) - coord) <= Math.abs(val(b) - coord) ? a : b
-}
-
 /** Rank-pair two point sets, wrapping the shorter one to the max length. */
 function rankPair(a: Vec2[], b: Vec2[]): { src: Vec2[]; dst: Vec2[] } {
   const n = Math.max(a.length, b.length)
@@ -133,55 +112,40 @@ function bucketByAxis(pts: Vec2[], axis: 'x' | 'y'): Map<number, Vec2[]> {
   return m
 }
 
-/** Swap pairing for cross modes, done *within each shared grid line* so the
- *  swap is local to a glyph's column/row and horizontal (resp. vertical)
- *  drift stays near zero — matching the user's "单个字的上方点向下" intent.
- *  verticalCross (axis 'y'): per x-column, top point ↔ bottom point.
- *  horizontalCross (axis 'x'): per y-row, left point ↔ right point.
- *  Points whose grid line has no counterpart fall back to nearest-rank
- *  pairing so every particle is still placed. */
+/** Pick a point by normalized rank so unequal lines repeat their edge points
+ *  in an even, ordered way instead of wrapping abruptly with modulo. */
+function rankedPoint(sorted: Vec2[], index: number, count: number): Vec2 {
+  if (sorted.length === 1 || count <= 1) return sorted[0]
+  const rank = Math.round((index * (sorted.length - 1)) / (count - 1))
+  return sorted[rank]
+}
+
+/** Swap pairing for cross modes. Lines are paired by normalized rank across the
+ *  whole text, then points are reversed within each line. This keeps the fold
+ *  local when both texts share columns/rows, while avoiding a pile-up when the
+ *  two texts use different line keys or have different point counts. */
 function crossPair(from: Vec2[], to: Vec2[], axis: 'x' | 'y'): { src: Vec2[]; dst: Vec2[] } {
+  if (!from.length || !to.length) return rankPair(from, to)
   // axis 'y' swaps along y within x-columns; axis 'x' swaps along x within y-rows.
   const lineAxis: 'x' | 'y' = axis === 'y' ? 'x' : 'y'
   const swapVal = axis === 'y' ? (p: Vec2) => p.y : (p: Vec2) => p.x
-  const A = bucketByAxis(from, lineAxis)
-  const B = bucketByAxis(to, lineAxis)
+  const A = [...bucketByAxis(from, lineAxis).entries()]
+    .sort((a, b) => a[0] - b[0]).map(([, pts]) => pts)
+  const B = [...bucketByAxis(to, lineAxis).entries()]
+    .sort((a, b) => a[0] - b[0]).map(([, pts]) => pts)
   const src: Vec2[] = []
   const dst: Vec2[] = []
-  const aOnly: Vec2[] = []
-  const bOnly: Vec2[] = []
-  const keys = new Set<number>([...A.keys(), ...B.keys()])
-  for (const k of keys) {
-    const ac = A.get(k)
-    const bc = B.get(k)
-    if (ac && bc) {
-      const as = [...ac].sort((p, q) => swapVal(p) - swapVal(q)) // ascending
-      const bs = [...bc].sort((p, q) => swapVal(q) - swapVal(p)) // descending → swap
-      const n = Math.max(as.length, bs.length)
-      for (let i = 0; i < n; i++) {
-        src.push(as[i % as.length])
-        dst.push(bs[i % bs.length])
-      }
-    } else if (ac) {
-      for (const p of ac) aOnly.push(p)
-    } else if (bc) {
-      for (const p of bc) bOnly.push(p)
-    }
-  }
-  // Leftover grid lines present on only one side: send each particle the
-  // *shortest* distance to the nearest occupied line on the other side
-  // (relocating, not swapping) so no particle streaks across the stage.
-  if (aOnly.length || bOnly.length) {
-    const toSorted = lineAxis === 'x' ? sortedByX(to) : sortedByY(to)
-    const fromSorted = lineAxis === 'x' ? sortedByX(from) : sortedByY(from)
-    const lineCoord = lineAxis === 'x' ? (p: Vec2) => p.x : (p: Vec2) => p.y
-    for (const p of aOnly) {
-      src.push(p)
-      dst.push(nearestByAxis(toSorted, lineCoord(p), lineAxis))
-    }
-    for (const p of bOnly) {
-      src.push(nearestByAxis(fromSorted, lineCoord(p), lineAxis))
-      dst.push(p)
+
+  const lineCount = Math.max(A.length, B.length)
+  for (let line = 0; line < lineCount; line++) {
+    const ac = A[Math.round((line * (A.length - 1)) / Math.max(1, lineCount - 1))]
+    const bc = B[Math.round((line * (B.length - 1)) / Math.max(1, lineCount - 1))]
+    const as = [...ac].sort((p, q) => swapVal(p) - swapVal(q))
+    const bs = [...bc].sort((p, q) => swapVal(q) - swapVal(p))
+    const count = Math.max(as.length, bs.length)
+    for (let i = 0; i < count; i++) {
+      src.push(rankedPoint(as, i, count))
+      dst.push(rankedPoint(bs, i, count))
     }
   }
   return { src, dst }
@@ -256,8 +220,9 @@ export function waypointFor(
   }
 }
 
-/** How much of `randomness × scatterAmount` becomes peak perpendicular wobble
- *  on the single-phase cross modes. */
+/** How much of `randomness × scatterAmount` becomes peak perpendicular bowing
+ *  on the single-phase cross modes. The sign is mirrored by the source side,
+ *  so the fold stays coherent instead of looking like independent noise. */
 const CROSS_WOBBLE = 0.5
 
 /** Gravity timeline (fractions of the transition):
@@ -283,6 +248,48 @@ function easeOutBack(t: number): number {
  *  endpoints — dots look like they recede into depth and land back in front. */
 const FLIGHT_SHRINK = 0.4
 
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value))
+}
+
+/** Return the normalized position of a particle in the mode's wavefront. The
+ *  wave stays directional for cross/gravity modes and radial for the modes
+ *  that already move around the stage centre. */
+function waveCoordinate(p: Vec2, movement: MovementMode, center: Vec2, phase = 0): number {
+  const width = Math.max(1, center.x * 2)
+  const height = Math.max(1, center.y * 2)
+  const nx = clamp01(p.x / width)
+  const ny = clamp01(p.y / height)
+  const radius = Math.max(1, Math.hypot(center.x, center.y))
+  const distance = Math.hypot(p.x - center.x, p.y - center.y)
+
+  switch (movement) {
+    case 'explode':
+      // The outside peels away first, leaving the core for last.
+      return clamp01(1 - distance / radius)
+    case 'implode':
+      // The centre collapses first, then the outer edge follows inward.
+      return clamp01(distance / radius)
+    case 'gravity':
+      // Dots near the floor start first, matching their shorter fall.
+      return 1 - ny
+    case 'verticalCross':
+      return ny
+    case 'horizontalCross':
+      return nx
+    case 'swirl': {
+      const angle = Math.atan2(p.y - center.y, p.x - center.x) + phase
+      const wrapped = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
+      return wrapped / (Math.PI * 2)
+    }
+    case 'morph':
+    case 'random':
+    default:
+      // A diagonal front keeps ordinary morphs lively without a new control.
+      return clamp01(nx * 0.7 + ny * 0.3)
+  }
+}
+
 /** Tiny drift for the resting text during the hold phase, so a static frame
  *  still breathes. The phase varies *smoothly* with position (a slow travelling
  *  wave, wavelength several hundred px), so neighbouring dots move together as
@@ -306,8 +313,8 @@ export class ParticleSystem {
   /** Per-particle landing progress for gravity (else null): the progress at
    *  which this dot reaches the floor. Tall dots land later → pancake pile-up. */
   private readonly gLand: number[] | null
-  /** Per-particle start-delay in [0, maxStagger]; remapped so every dot still
-   *  reaches its target at progress 1 (see localProgress). */
+  /** Spatially ordered start-delay in [0, maxStagger]; remapped so every dot
+    *  still reaches its target at progress 1 (see localProgress). */
   private readonly stagger: number[]
   private readonly center: Vec2
   private readonly swirl: boolean
@@ -362,16 +369,21 @@ export class ParticleSystem {
         this.gLand = null
       }
     } else if (movement === 'verticalCross' || movement === 'horizontalCross') {
-      // Single-phase swap with a perpendicular wobble so the fold is not rigid:
-      // verticalCross wobbles in x, horizontalCross in y. Signed per particle,
-      // peaks mid-transition (see positionsAt), magnitude set by randomness.
+      // Single-phase swap with a mirrored perpendicular bow: the two halves
+      // bend away from each other through the crossing instead of each dot
+      // picking an unrelated random side.
       const amp = opts.randomness * opts.scatterAmount * CROSS_WOBBLE
-      const horizontal = movement === 'verticalCross'
+      const wobbleX = movement === 'verticalCross'
       const perp: Vec2[] = []
       for (let i = 0; i < this.src.length; i++) {
-        const signed = rand() * 2 - 1
+        const axis = wobbleX
+          ? this.src[i].y - center.y
+          : this.src[i].x - center.x
+        const side = axis === 0 ? (i % 2 === 0 ? -1 : 1) : Math.sign(axis)
+        const variation = 0.85 + rand() * 0.15
+        const signed = side * variation
         perp.push(
-          horizontal
+          wobbleX
             ? { x: signed * amp, y: 0 }
             : { x: 0, y: signed * amp },
         )
@@ -388,10 +400,25 @@ export class ParticleSystem {
     }
 
     // Built last so the RNG draws above (waypoints / wobble) are unaffected by
-    // whether stagger is on — keeps existing seeded output deterministic.
+    // whether stagger is on — keeps the motion shape deterministic.
     const staggerAmt = Math.min(0.6, Math.max(0, opts.stagger ?? 0))
     const stagger: number[] = []
-    for (let i = 0; i < this.src.length; i++) stagger.push(staggerAmt * rand())
+    const cross = movement === 'verticalCross' || movement === 'horizontalCross'
+    if (cross) {
+      // A cross is a single coordinated fold; stagger would make one side
+      // arrive early and then visibly snap into alignment at the endpoint.
+      for (let i = 0; i < this.src.length; i++) stagger.push(0)
+    } else {
+      const reverseWave = movement === 'random' && rand() < 0.5
+      const swirlPhase = movement === 'swirl' ? rand() * Math.PI * 2 : 0
+      for (let i = 0; i < this.src.length; i++) {
+        let wave = waveCoordinate(this.src[i], movement, center, swirlPhase)
+        if (reverseWave) wave = 1 - wave
+        // Keep the spatial order readable while preventing a mechanical scanline.
+        const order = clamp01(wave * 0.82 + rand() * 0.18)
+        stagger.push(staggerAmt * order)
+      }
+    }
     this.stagger = stagger
   }
 
