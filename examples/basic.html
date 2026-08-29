@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>text-transmorph · library demo</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #101014;
+      color: #e8e8ee;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(1080px, 94vw);
+      display: grid;
+      gap: 18px;
+      padding: 32px 0;
+    }
+    h1 { font-size: 15px; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.55; margin: 0 0 2px; }
+    .stage {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #e2483d;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+    }
+    canvas { display: block; width: 100%; height: auto; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+    button, select {
+      background: #1d1d24;
+      color: inherit;
+      border: 1px solid #33333e;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover, select:hover { border-color: #55556a; }
+    .tall { margin-top: 40vh; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>text-transmorph — embeddable demo</h1>
+    <div class="stage">
+      <canvas id="stage"></canvas>
+    </div>
+    <div class="controls">
+      <button id="toggle" type="button">暂停</button>
+      <label>变换模式
+        <select id="mode">
+          <option value="explode">explode</option>
+          <option value="implode">implode</option>
+          <option value="gravity">gravity</option>
+          <option value="swirl">swirl</option>
+          <option value="verticalCross">verticalCross</option>
+          <option value="horizontalCross">horizontalCross</option>
+          <option value="morph">morph</option>
+          <option value="random">random</option>
+        </select>
+      </label>
+      <label>点大小 <input id="dot" type="range" min="2" max="13" step="1" value="9"></label>
+      <label>网格间距 <input id="grid" type="range" min="4" max="24" step="1" value="13"></label>
+    </div>
+    <div class="controls">
+      <span>进度（手动 driver）</span>
+      <input id="progress" type="range" min="0" max="100" step="0.5" value="0" style="flex:1">
+    </div>
+    <div class="tall"></div>
+  </main>
+  <script type="module" src="./basic.js"></script>
+</body>
+</html>
