@@ -3,6 +3,16 @@ import { type Config, STAGE_PRESETS } from '../config/types'
 import { easings, type EasingName } from '../core/easing'
 import type { MovementMode } from '../core/particles'
 
+// Lucide refresh-cw icon, recolored via `currentColor`. Sits inline with the
+// button label so the touch target stays a single button. Stroke width tuned
+// to 1.75 so the arrow reads cleanly at the 14px size inside the existing
+// `.btn-reroll` style.
+const REROLL_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M21 12a9 9 0 1 1-3.5-7.1"/>' +
+  '<polyline points="21 4 21 9 16 9"/>' +
+  '</svg>'
+
 const MOVEMENT_LABELS: Record<MovementMode, string> = {
   random: '随机散开',
   explode: '径向爆炸',
@@ -128,7 +138,7 @@ export function mountControls(
         sliderRow('f-scatter', '散开强度', '', c.scatterAmount, 'min="0" max="800"'),
         sliderRow('f-rand', '随机度', '', c.randomness, 'min="0" max="1" step="0.05"'),
         sliderRow('f-stagger', '错峰波浪', '', c.stagger, 'min="0" max="0.6" step="0.02"'),
-        row('随机形态', '<button id="f-reroll" class="btn-reroll" type="button">🎲 换一换</button>')),
+        row('随机形态', `<button id="f-reroll" class="btn-reroll" type="button">${REROLL_ICON}<span>换一换</span></button>`)),
       group('节奏',
         sliderRow('f-trans', '过渡时长', 'ms', c.transitionMs, 'min="300" max="3000" step="50"'),
         sliderRow('f-hold', '停留时长', 'ms', c.holdMs, 'min="200" max="4000" step="50"'),

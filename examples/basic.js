@@ -7,11 +7,9 @@ const tm = createTextTransmorph(canvas, {
   dotColor: '#ffffff',
   dotColor2: '#ffd34e',
   gradient: true,
-  dotSize: 9,
-  gridSpacing: 13,
   movement: 'explode',
-  transitionMs: 1400,
-  holdMs: 1200,
+  dotSize: 2,
+  gridSpacing: 1.5,
   idleFloat: 0,
   randomness: 0,
 })

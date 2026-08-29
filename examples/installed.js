@@ -14,10 +14,9 @@ const tm = createTextTransmorph(canvas, {
   dotColor2: '#f48fb1',
   gradient: true,
   movement: 'swirl',
-  dotSize: 9,
-  gridSpacing: 13,
-  transitionMs: 1400,
-  holdMs: 1200,
+  dotSize: 2,
+  gridSpacing: 1.5,
+  idleFloat: 0,
 })
 
 // Play/pause toggle — same lifecycle methods as the in-tree demo.
